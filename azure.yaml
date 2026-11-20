@@ -1,0 +1,26 @@
+name: delivery-hub
+
+infra:
+  provider: bicep
+
+services:
+  frontend:
+    project: src/frontend
+    language: docker
+    host: containerapp
+    docker:
+      path: Dockerfile
+
+  api:
+    project: src/backend
+    language: docker
+    host: containerapp
+    docker:
+      path: Dockerfile
+
+  worker:
+    project: src/backend
+    language: docker
+    host: containerapp
+    docker:
+      path: Dockerfile

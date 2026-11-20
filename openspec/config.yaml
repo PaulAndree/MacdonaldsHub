@@ -1,0 +1,176 @@
+schema: spec-driven
+
+context: |
+  Delivery Hub is a delivery-incident claims app for a McDonald's franchise.
+  Approved source requirements are in Spanish Markdown under docs/.
+  Treat approved user decisions as authoritative over superseded wording.
+  This context describes intended behavior, not implemented capabilities.
+
+  ARCHITECTURE
+  - Independent React + TypeScript frontend and one modular Python backend.
+  - API means the backend HTTP process running FastAPI.
+  - Worker means one other process of that same backend, handling import
+    and email tasks. API and worker share backend code and one image.
+  - API contract: docs/api/openapi.yaml (versioned OpenAPI). Frontend mocks derive
+    from it; backend must match the approved version (ADR-16).
+  - Two application images and three application services in Azure Container
+    Apps (frontend, API, worker). PostgreSQL is Azure Flexible Server created by
+    Bicep, one server per environment (ADR-15).
+  - One permanent worker replica, no public ingress, with PostgreSQL mutual
+    exclusion for work ownership and overlapping deployment revisions:
+    pg_advisory_lock for the loop owner, FOR UPDATE SKIP LOCKED per row, and
+    the global send interval kept in a PostgreSQL row (ADR-13).
+  - PostgreSQL holds staging, incidents, outbox, history and audit. No broker.
+  - Azure Blob Storage holds uploaded XLSX files. Bicep is the IaC choice.
+    Uploads use create-only SAS into `uploads`; the worker stores a SHA-256 and
+    copies the confirmed original to the immutable `confirmed` container after
+    the PostgreSQL transaction (ADR-14). Secrets live in Key Vault (ADR-15).
+  - Google login through Container Apps Easy Auth authenticates users;
+    FastAPI authorization middleware enforces an allowlist and role permissions.
+    Easy Auth is enabled only on the frontend app, which proxies /api to an
+    internal-ingress API; the API trusts the forwarded Easy Auth identity and
+    answers 401 without it (ADR-12). The worker has no ingress.
+    Application user login does not use Microsoft Entra ID. Azure managed
+    identities remain available for service access to storage and secrets.
+  - Azure Monitor, Application Insights, OpenTelemetry and GitHub Actions.
+  - Local Compose uses frontend, API, one worker, real PostgreSQL, Azurite
+    and SMTP capture. Configuration selects adapters, not business rules.
+    Development identity must fail startup outside the local environment.
+
+  MANDATORY BUSINESS FLOW
+  1. Administrator uploads XLSX directly from the frontend to Blob using
+     temporary access granted by the API.
+  2. Backend import task reads and validates it, compares within-file keys
+     and existing incidents, and writes temporary PostgreSQL staging.
+  3. Frontend displays backend-generated preview classifications. No final
+     incidents or outbox entries for this batch exist before confirmation.
+  4. On human confirmation, recheck duplicates and atomically write final
+     incidents, eligible outbox entries, confirmed batch state and audit in
+     one PostgreSQL transaction. Confirmation is idempotent and concurrent-safe.
+  5. Worker consumes outbox sequentially, with at least 30 seconds between
+     starts of consecutive attempts, globally and across restarts. Only
+     Uber Eats and Just Eat create emails; Glovo is tracked without email.
+
+  INPUT AND DEDUPLICATION
+  - Exactly one worksheet. Eight recognized Spanish headers, but only
+    Proveedor, Order ID and Fecha y hora must exist and have values per row.
+    Sucursal, Importe a reclamar, Costos de proveedor, Total and Descripción
+    may be absent or empty.
+  - Incident date accepts a native Excel date/datetime or text YYYY-MM-DD or
+    YYYY-MM-DD HH:MM. Time is optional, read as Europe/Madrid local time, never
+    invented (no 00:00 default). Order ID is alphanumeric text; a numeric cell
+    is a row error.
+  - Amounts, when present, must be numeric cells (decimals allowed), kept with
+    their source sign and value (zero and negatives accepted, no sign checks).
+    Text amounts are row errors. Currency is EUR. Preserve source decimal precision, do not force two
+    decimals, and do not replace missing amounts with zero.
+  - Only lowercase branch and provider values. No trimming, aliases,
+    identifier repair or other normalization in v1.
+  - Missing branch is allowed; a supplied branch must be known.
+  - The definitive unique key is provider + order ID, enforced in PostgreSQL.
+    Do not reopen this decision or add branch to the key.
+  - Same key and same relevant fields means duplicate; different relevant
+    fields means conflict. Compare incident date, branch, claim amount,
+    provider costs, total and description. Invalid rows are errors.
+    Repeated valid keys within a file are all excluded; differing values
+    make the group conflicting. Import only valid new rows.
+  - No age-based claim exclusion. No macros or formula evaluation.
+
+  TEMPORALITY AND CONFIRMATION
+  - Cancel before confirmation, or the app's "Cerrar sesión" button, discards
+    the user's unconfirmed batches and deletes their Blob file and staging. The
+    button only calls the API; it does not end the Easy Auth session. There is
+    no automatic expiry: an unconfirmed batch stays in review until confirmed
+    or discarded, including after an unexpected browser closure. Each user has
+    at most one unconfirmed batch (Subido, Procesando or En revisión), enforced
+    in PostgreSQL; Rechazado does not count; discard works in all three states.
+  - Coordinate cleanup and confirmation in PostgreSQL. Confirmed batches and
+    their original files are protected from temporary cleanup.
+  - Keep the confirmed original XLSX in Blob with batch, actor and timestamp.
+    Blob retention is verified separately from the PostgreSQL transaction.
+    After successful confirmation, clean up staging while preserving final
+    incidents, the stored confirmation result and the confirmed original.
+  - Bind confirmation to the reviewed file version, recipient and template.
+    Later configuration changes must not silently alter authorized outbox.
+  - No undo or email cancellation after confirmation. Manual result
+    corrections are allowed with history and do not undo import or sending.
+
+  EMAIL AND METRICS
+  - Exactly one send attempt per outbox record. No automatic retries or
+    manual resends. Record Sent when the send operation finishes without
+    error; otherwise record Error with a reason. Neither proves delivery.
+  - Interrupted Sending entries with unverifiable results become Error
+    without another send attempt. Pending entries may continue after restart.
+  - Pause is persistent and prevents new attempts; an in-flight one may finish.
+    Completed batches can contain both successful and failed emails.
+  - Real provider recipients are unknown. Until defined, only one configured
+    test recipient is allowed in a separate test environment with its own
+    database, storage and metrics. Never promote test batches/outbox to
+    production. Local email stays in SMTP capture.
+  - Institutional sender; mailbox access and final subject/body are pending.
+    Template is fixed plus order ID. Do not assume credentials or protocols.
+  - Track actual email claims separately from manual Glovo claims, explicit
+    recovered amounts (including partial recovery), incident/claim/recovery
+    dates, unresolved claims and audited result corrections.
+  - Do not invent temporal KPI formulas, missing-amount aggregation policies,
+    retention periods, file limits or other unresolved business decisions.
+    Pending items P-01 through P-12 are listed in docs/project_overview.md.
+
+  FOUR CHANGES, IN ORDER
+  0. platform-base - docs/change_00_plataforma_base.md
+     IaC, identity, initial admin, secure config, containers and minimal
+     frontend/API/worker startup. No business implementation.
+  1. frontend - docs/change_01_frontend.md
+     Navigable layout and interactions with example data and an API contract.
+     Explicit administrator approval is required before business implementation.
+  2. backend - docs/change_02_backend.md
+     Ingestion, validation, staging, atomic confirmation/outbox, queries,
+     metrics, manual entry, administration, audit and frontend integration.
+     Creates pending email records but does not send them.
+     tasks.md MUST follow the eight ordered phases in docs/change_02_backend.md
+     section 11, each verified and reviewed before the next starts.
+  3. email-sending - docs/change_03_envio_correos.md
+     Outbox consumption, one attempt per email, 30-second spacing, test
+     recipient, pause/resume, outcomes and history. No retry behavior.
+
+  CAPABILITIES (consolidated specs, one folder each under openspec/specs/)
+  platform, identity-access, xlsx-import, batch-confirmation, incidents,
+  metrics, administration, audit, email-outbox. Place each requirement in
+  exactly one capability; a change may touch several.
+
+  DOCUMENTATION AND WORKING RULES
+  - docs/project_overview.md and docs/architecture.md provide shared context.
+    The four docs/change_NN_*.md files above are the only change sources.
+  - openspec/specs/ holds consolidated specs; openspec/changes/archive/ history.
+  - Read relevant files before authoring artifacts. Record the actual source
+    path in proposal.md. Never assume a missing document was read.
+  - Work within the user-selected scope; express dependencies explicitly.
+  - Source documentation and UI are Spanish. Formal OpenSpec specifications,
+    code, identifiers and commits are English.
+  - Inspect current specs, code and tests before changing a capability.
+    A pending change is not implemented functionality; archived text never
+    overrides current specs. Report conflicts and resolve them explicitly.
+  - Preserve RF/RN/RNF traceability and update scenarios with changed behavior.
+  - Secrets never appear in code, documentation, logs or database plaintext.
+    Database migrations are reversible; confirmed imports have no user undo.
+
+rules:
+  proposal:
+    - Name the selected source file under docs/ and state explicit dependencies.
+    - Keep the four-change structure and the frontend approval boundary.
+  design:
+    - Use the shared backend API and single worker; justify new services in an ADR.
+    - Keep PostgreSQL confirmation atomicity separate from Blob file retention.
+    - Preserve single-attempt email semantics and isolated test data.
+  specs:
+    - Write requirements in English using SHALL; scenarios with WHEN/THEN.
+    - Cover pre-confirmation staging, atomic confirmation, explicit discard and no email retries.
+    - Preserve missing optional values and source decimal precision.
+    - Leave unresolved business decisions explicit rather than inventing defaults.
+    - Place each requirement in exactly one capability spec and reference its source scenario ID (BASE-xx, UI-xx, E-xx, BE-xx, MAIL-xx).
+  tasks:
+    - Use TDD for deduplication/classification, atomic/idempotent confirmation and the email sender.
+    - Test email errors and interrupted attempts without resending; test the global 30-second interval and pause.
+    - Use real local PostgreSQL and Azurite for integration; frontend design examples are not integration evidence.
+    - Require administrator approval of change 1 layout and flows before implementing change 2 business logic.
+    - Split change 2 tasks into the eight phases of docs/change_02_backend.md section 11, in order; the metrics phase stays blocked until P-04 is resolved.
