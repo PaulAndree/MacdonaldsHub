@@ -24,3 +24,4 @@ coverage/
 
 # local data
 *.log
+*.egg-info/

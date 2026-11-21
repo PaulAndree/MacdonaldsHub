@@ -1,0 +1,35 @@
+server {
+  listen 3000;
+  server_name _;
+  server_tokens off;
+  root /usr/share/nginx/html;
+
+  add_header X-Content-Type-Options nosniff always;
+
+  # Container probe endpoint; answered by the container itself, never proxied.
+  location = /healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 "ok\n";
+  }
+
+  # Only an explicit allowlist of request headers reaches the API. Cookies, Authorization and
+  # any other client header are dropped. Easy Auth identity headers are forwarded only when
+  # TRUST_EASY_AUTH_HEADERS=true (set by Bicep in Azure, where Easy Auth overwrites them).
+  location /api/ {
+    proxy_pass ${API_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_ssl_server_name on;
+    proxy_pass_request_headers off;
+    proxy_set_header Host $proxy_host;
+    proxy_set_header Content-Type $content_type;
+    proxy_set_header Content-Length $content_length;
+    proxy_set_header Accept $http_accept;
+    proxy_set_header X-Correlation-Id $http_x_correlation_id;
+    include /etc/nginx/identity/headers.conf;
+  }
+
+  location / {
+    try_files $uri /index.html;
+  }
+}
