@@ -1,21 +1,146 @@
+# Local environment: frontend, API, one worker, PostgreSQL, Azurite and SMTP capture.
+#   docker compose up --build        start everything (no Azure access needed)
+#   http://localhost:3000            frontend (proxies /api to the API)
+#   http://localhost:8025            captured email (Mailpit)
+# Values below are throwaway local defaults; override with environment variables or a local .env.
+# The Azurite key is the publicly documented development key, not a secret.
+
+x-backend-env: &backend-env
+  APP_ENV: local
+  IDENTITY_PROVIDER: dev
+  DEV_IDENTITY_EMAIL: ${DEV_IDENTITY_EMAIL:-dev@example.test}
+  DEV_IDENTITY_ROLE: ${DEV_IDENTITY_ROLE:-administrator}
+  DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-localdev}@postgres:5432/deliveryhub
+  STORAGE_BACKEND: azurite
+  STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+  STORAGE_PUBLIC_ENDPOINT: http://127.0.0.1:10000/devstoreaccount1
+  MAIL_TRANSPORT: smtp_capture
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  TELEMETRY_EXPORTER: console
+  FRONTEND_ORIGIN: http://localhost:3000
+
+x-backend-image: &backend-image delivery-hub-backend:local
+
 services:
-  frontend:
-    build: src/frontend
-    ports:
-      - "3000:3000"
-
-  backend:
-    build: src/backend
-    ports:
-      - "8000:8000"
-
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_PASSWORD: localdev
-  
+      POSTGRES_DB: deliveryhub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d deliveryhub"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
-    command: azurite-blob --blobHost 0.0.0.0
+    command: azurite-blob --blobHost 0.0.0.0 --location /data --skipApiVersionCheck
+    volumes:
+      - azuritedata:/data
     ports:
       - "127.0.0.1:10000:10000"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 10000"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+
+  migrate:
+    image: *backend-image
+    build: src/backend
+    command: ["python", "-m", "app.migrate", "upgrade"]
+    environment: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: *backend-image
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      azurite:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      retries: 10
+    restart: unless-stopped
+
+  worker:
+    image: *backend-image
+    command: ["python", "-m", "app.worker.main"]
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.worker.healthcheck"]
+      interval: 10s
+      timeout: 4s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build: src/frontend
+    environment:
+      API_UPSTREAM: http://api:8000
+      TRUST_EASY_AUTH_HEADERS: "false"
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+
+  # Throwaway infrastructure for integration tests (see src/backend/README.md):
+  #   docker compose --profile test up -d postgres-test azurite-test mailpit
+  postgres-test:
+    profiles: [test]
+    image: postgres:17
+    environment:
+      POSTGRES_DB: deliveryhub_test
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d deliveryhub_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  azurite-test:
+    profiles: [test]
+    image: mcr.microsoft.com/azure-storage/azurite
+    command: azurite-blob --blobHost 0.0.0.0 --skipApiVersionCheck
+    ports:
+      - "127.0.0.1:10100:10000"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 10000"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
+  azuritedata:

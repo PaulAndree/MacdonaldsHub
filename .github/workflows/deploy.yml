@@ -1,0 +1,106 @@
+name: Deploy
+
+# Deploys to Azure through GitHub OIDC (federated credentials): no Azure secret is stored.
+# Required repository/environment VARIABLES (not secrets): AZURE_CLIENT_ID, AZURE_TENANT_ID,
+# AZURE_SUBSCRIPTION_ID. Values for pending decisions (P-07) are variables too and have no defaults.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment (production needs reviewers configured on the GitHub environment)
+        type: choice
+        options: [test, production]
+        default: test
+      stage:
+        description: infrastructure = shared resources only; applications = full deployment
+        type: choice
+        options: [infrastructure, applications]
+        default: infrastructure
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    # Deployment is gated on the whole CI workflow (lint, tests, images): if any job fails, nothing deploys.
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      RG: rg-deliveryhub-${{ inputs.environment }}
+      PARAMS: infra/main.${{ inputs.environment == 'production' && 'prod' || 'test' }}.bicepparam
+      IMAGE_TAG: ${{ github.sha }}
+      EASY_AUTH_ENABLED: ${{ vars.EASY_AUTH_ENABLED }}
+      GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+      ALLOWLIST_IDENTIFIER: ${{ vars.ALLOWLIST_IDENTIFIER }}
+      INITIAL_ADMIN_EMAIL: ${{ vars.INITIAL_ADMIN_EMAIL }}
+      INITIAL_ADMIN_SUBJECT: ${{ vars.INITIAL_ADMIN_SUBJECT }}
+      ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require the pending identity decision (P-07) before deploying applications
+        if: inputs.stage == 'applications'
+        run: |
+          if [ -z "$ALLOWLIST_IDENTIFIER" ]; then
+            echo "ALLOWLIST_IDENTIFIER (sub or email) is not set: decision P-07 is still pending." >&2; exit 1
+          fi
+          if [ -z "$INITIAL_ADMIN_EMAIL$INITIAL_ADMIN_SUBJECT" ]; then
+            echo "Set INITIAL_ADMIN_EMAIL or INITIAL_ADMIN_SUBJECT (P-07)." >&2; exit 1
+          fi
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Shared infrastructure
+        id: infra
+        run: |
+          DEPLOYMENT_STAGE=infrastructure az deployment group create -g "$RG" -n "infra-${{ github.run_id }}" \
+            --parameters "$PARAMS" --query 'properties.outputs' -o json > outputs.json
+          echo "registry=$(jq -r .registryName.value outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "login=$(jq -r .registryLoginServer.value outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "job=$(jq -r .migrateJobName.value outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "seed=$(jq -r .seedJobName.value outputs.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push images
+        if: inputs.stage == 'applications'
+        run: |
+          az acr login --name "${{ steps.infra.outputs.registry }}"
+          docker build -t "${{ steps.infra.outputs.login }}/delivery-hub-backend:$IMAGE_TAG" src/backend
+          docker build -t "${{ steps.infra.outputs.login }}/delivery-hub-frontend:$IMAGE_TAG" src/frontend
+          docker push "${{ steps.infra.outputs.login }}/delivery-hub-backend:$IMAGE_TAG"
+          docker push "${{ steps.infra.outputs.login }}/delivery-hub-frontend:$IMAGE_TAG"
+
+      - name: Migrations, then initial administrator (both before the applications start)
+        if: inputs.stage == 'applications'
+        run: |
+          DEPLOYMENT_STAGE=jobs az deployment group create -g "$RG" -n "jobs-${{ github.run_id }}" --parameters "$PARAMS" >/dev/null
+          run_job() {
+            job="$1"
+            execution=$(az containerapp job start -g "$RG" -n "$job" --query name -o tsv)
+            for _ in $(seq 1 60); do
+              status=$(az containerapp job execution show -g "$RG" -n "$job" --job-execution-name "$execution" --query properties.status -o tsv)
+              echo "$job: $status"
+              [ "$status" = "Succeeded" ] && return 0
+              [ "$status" = "Failed" ] && { echo "$job failed" >&2; return 1; }
+              sleep 10
+            done
+            echo "$job timed out" >&2; return 1
+          }
+          run_job "${{ steps.infra.outputs.job }}"
+          run_job "${{ steps.infra.outputs.seed }}"
+
+      - name: Applications
+        if: inputs.stage == 'applications'
+        run: DEPLOYMENT_STAGE=applications az deployment group create -g "$RG" -n "apps-${{ github.run_id }}" --parameters "$PARAMS"
