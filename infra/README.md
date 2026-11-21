@@ -68,7 +68,9 @@ DEPLOYMENT_STAGE=applications  IMAGE_TAG=<tag> ALLOWLIST_IDENTIFIER=... INITIAL_
 
 Use the GitHub workflow `Deploy` for repeatable deployments: it authenticates with GitHub OIDC
 (federated credentials, no stored Azure secret). One-time setup: an app registration with a
-federated credential for the repository environment, granted rights on the resource group that
+federated credential for the repository environment (the credential's subject must match the
+token exactly; GitHub may use the immutable-ID form `repo:OWNER@ID/REPO@ID:environment:test`, which
+the `azure/login` error log prints), granted rights on the resource group that
 include creating role assignments and pushing images (for example `Contributor`, `AcrPush` and
 `Role Based Access Control Administrator`), and the variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`
 and `AZURE_SUBSCRIPTION_ID` on the GitHub environment.
