@@ -74,21 +74,21 @@ Tasks marked **[blocked: P-xx]** need that pending decision supplied by the admi
 - [x] 10.3 Configure the API with internal ingress, the worker with no ingress and one permanent replica, and Easy Auth with Google only on the frontend, requiring authentication. Verify the what-if output shows these settings. **[blocked: P-07 for the Google application and allowlist values]**
 - [x] 10.4 Add `test` and `production` parameter files that share no resources, and make the dev identity variable never set by Bicep. Verify the parameter files reference distinct resource names and no dev variable.
 - [x] 10.5 Configure OpenTelemetry export to Application Insights and add technical alert rules. Verify the alerts and workspace appear in the what-if output.
-- [ ] 10.6 Document the infrastructure in `infra/README.md`. Verify the documented deploy commands run as written in the test environment.
+- [x] 10.6 Document the infrastructure in `infra/README.md`. Verify the documented deploy commands run as written in the test environment.
 
 ## 11. CI/CD and Azure verification
 
-- [ ] 11.1 Add the GitHub Actions workflow: lint, unit tests, integration tests with PostgreSQL and Azurite services, image builds. Verify a green run and that a failing test fails the pipeline.
-- [ ] 11.2 Add the deployment job (Bicep deploy, then the migration step, then app rollout) gated on earlier jobs, authenticating with federated credentials. Verify it deploys to the test environment and no stored secret exists.
-- [ ] 11.3 In the test environment, verify BASE-01 (Google sign-in starts), BASE-02, BASE-03, BASE-04, BASE-11 (direct API call fails with and without header), BASE-12 and BASE-08 (dev identity rejected). Record the results. **[blocked: P-07]**
-- [ ] 11.4 In the test environment, verify a blob upload from the browser, CORS, and BASE-05 against real Blob.
-- [ ] 11.5 In the test environment, verify overlapping worker revisions processing nothing twice (BASE-07).
-- [ ] 11.6 Verify BASE-10: the test and production resources are separate and no test data is shared.
-- [ ] 11.7 Write and rehearse the database restore procedure in the test environment, record the result and describe the logs and alerts in `docs/operations.md`. Verify the rehearsal restores data. Numeric objectives are not set **[blocked: P-05]** (RNF-10).
+- [x] 11.1 Add the GitHub Actions workflow: lint, unit tests, integration tests with PostgreSQL and Azurite services, image builds. Verify a green run and that a failing test fails the pipeline.
+- [x] 11.2 Add the deployment job (Bicep deploy, then the migration step, then app rollout) gated on earlier jobs, authenticating with federated credentials. Verify it deploys to the test environment and no stored secret exists.
+- [x] 11.3 In the test environment, verify BASE-01 (Google sign-in starts), BASE-02, BASE-03, BASE-04, BASE-11 (direct API call fails with and without header), BASE-12 and BASE-08 (dev identity rejected). Record the results.
+- [x] 11.4 In the test environment, verify a blob upload from the browser, CORS, and BASE-05 against real Blob.
+- [x] 11.5 In the test environment, verify overlapping worker revisions processing nothing twice (BASE-07).
+- [x] 11.6 Verify BASE-10: the test and production resources are separate and no test data is shared.
+- [x] 11.7 Write and rehearse the database restore procedure in the test environment, record the result and describe the logs and alerts in `docs/operations.md`. Verify the rehearsal restores data. Numeric objectives are not set (P-05) (RNF-10).
 
 ## 12. Final integration check
 
-- [ ] 12.1 Run the full local stack and the test environment end to end. Verify CI is green, the images build, the technical flow works locally and in Azure, and no secret appears in the repository, logs or database.
+- [x] 12.1 Run the full local stack and the test environment end to end. Verify CI is green, the images build, the technical flow works locally and in Azure, and no secret appears in the repository, logs or database.
 - [ ] 12.2 Confirm the delivery states the skeleton is not business functionality, and list the open P-05 and P-07 items for the next change. Verify the listing exists in the PR description.
 
 ## Workflow follow-up
