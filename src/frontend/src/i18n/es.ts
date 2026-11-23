@@ -1,9 +1,9 @@
 /** All user-facing text. The interface is in Spanish; code identifiers stay in English. */
 export const es = {
   appName: "Delivery Hub",
-  tagline: "Reclamaciones y administración",
+  tagline: "Reclamaciones",
   roles: { administrator: "Administrador", global_manager: "Gerente global" },
-  environments: { local: "Local", test: "Pruebas", production: "Producción" },
+  environments: { local: "Local", test: "piloto", production: "Producción" },
   access: {
     noSessionTitle: "Sesión no válida",
     noSessionHelp:
@@ -38,16 +38,16 @@ export const es = {
     text: "La dirección no existe o ya no está disponible.",
     back: "Volver al inicio",
   },
-  banners: {
-    test: "Entorno de pruebas: los destinatarios y las métricas de este entorno no son actividad real de producción.",
-  },
+  //banners: {
+  //  test: "Entorno de pruebas: los destinatarios y las métricas de este entorno no son actividad real de producción.",
+  //},
   import: {
-    subtitle: "Suba el XLSX de incidencias. Se prepara una vista previa antes de crear nada.",
+    subtitle: "Suba el XLSX de incidencias. Se prepara una vista previa previa a la confirmación.",
     fileLabel: "Archivo XLSX de incidencias",
     requiredHeaders: "Encabezados obligatorios: Proveedor, Order ID y Fecha y hora.",
     optionalHeaders:
       "Opcionales: Sucursal, Importe a reclamar, Costos de proveedor, Total y Descripción. Pueden faltar.",
-    limits: "Tamaño y número máximo de filas",
+    //limits: "Tamaño y número máximo de filas",
     preparing: "Preparando la subida…",
     uploading: (percent: number | null) => (percent === null ? "Subiendo el archivo…" : `Subiendo el archivo… ${percent} %`),
     finishing: "Pidiendo el procesamiento…",
@@ -72,10 +72,10 @@ export const es = {
     tableCaption: "Filas del archivo con su clasificación",
     columns: {
       row: "Fila",
-      class: "Clase",
+      class: "Estado",
       provider: "Proveedor",
       orderId: "Order ID",
-      date: "Fecha y hora (Madrid)",
+      date: "Fecha y hora",
       branch: "Sucursal",
       claim: "Importe a reclamar",
       reason: "Motivo",
@@ -169,7 +169,7 @@ export const es = {
     newEntry: "Nueva incidencia",
     export: "Exportar",
     exporting: "Exportando…",
-    exportHelp: "Se exportan las incidencias que cumplen los filtros actuales. Lo que falta aparece como «Sin sucursal» o «Importe desconocido», nunca como cero.",
+    //exportHelp: "Se exportan las incidencias que cumplen los filtros actuales. Lo que falta aparece como «Sin sucursal» o «Importe desconocido», nunca como cero.",
     filters: {
       label: "Filtrar incidencias",
       provider: "Proveedor",
@@ -283,11 +283,11 @@ export const es = {
   },
   metrics: {
     subtitle: (environment: string) => `Reclamaciones por correo y manuales de Glovo · Entorno: ${environment}`,
-    envTest: "Estas cifras son del entorno de pruebas: no son actividad real de producción.",
+    //envTest: "Estas cifras son del entorno de pruebas: no son actividad real de producción.",
     envProduction: "Cifras del entorno de producción.",
     filters: { label: "Filtrar el panel", dateKind: "Fecha por la que contar", from: "Desde", to: "Hasta", provider: "Proveedor", branch: "Sucursal", all: "Todos", allBranches: "Todas", noBranch: "Sin sucursal", clear: "Quitar los filtros" },
     dateKinds: { incident: "Fecha de la incidencia", claim: "Fecha de reclamación", recovery: "Fecha de recuperación" },
-    criterion: (label: string) => `Criterio de fecha: ${label}. Todas las cifras y el periodo usan esta fecha.`,
+    //criterion: (label: string) => `Criterio de fecha: ${label}. Todas las cifras y el periodo usan esta fecha.`,
     examples: "La fecha por defecto, la fórmula de la tasa y el criterio de antigüedad son ejemplos de diseño, no criterios aprobados:",
     channels: { email: "Por correo", glovo: "Manual de Glovo" },
     kpi: { claimed: "Reclamaciones", claimedAmount: "Importe reclamado", recovered: "Recuperaciones", recoveredAmount: "Importe recuperado", rate: "Tasa de recuperación" },
@@ -312,7 +312,7 @@ export const es = {
     noPeriod: "No hay datos para el periodo seleccionado.",
   },
   manual: {
-    subtitle: "Dé de alta una incidencia que no viene de un archivo. Se comprueba, se revisa y solo se guarda cuando usted la confirma.",
+    //subtitle: "Dé de alta una incidencia que no viene de un archivo. Se comprueba, se revisa y solo se guarda cuando usted la confirma.",
     provider: "Proveedor",
     chooseProvider: "Elija un proveedor",
     orderId: "Order ID",
@@ -363,9 +363,9 @@ export const es = {
     recipient: "Destinatario autorizado",
     template: "Plantilla del correo",
     templateExample: "Texto de ejemplo: la redacción final está pendiente de decisión.",
-    onlyVariable: "El único dato variable del correo es el número de incidencia (Order ID).",
+    onlyVariable: "",
     noUndo:
-      "Confirmar no se puede deshacer. Los correos ya generados no se pueden cancelar después.",
+      "Al confirmar se procederá al envio de correos y una vez confirmado esta acción no se puede revertir. ",
     button: (n: number) => (n === 1 ? "Confirmar e importar 1 incidencia" : `Confirmar e importar ${n} incidencias`),
     confirming: "Confirmando…",
     nothingToImport: "No hay filas nuevas que importar. Cancele el lote o corrija el archivo y súbalo de nuevo.",
@@ -438,9 +438,9 @@ export const es = {
   },
   queue: {
     subtitle: (environment: string) => `Entorno: ${environment}. Los correos salen de uno en uno.`,
-    rules:
-      "Cada correo tiene un único intento. No hay reintento, reenvío ni cancelación: un correo en error queda en error. Entre el inicio de dos envíos pasan al menos 30 segundos.",
-    testRecipient: "Mientras no se definan los destinatarios reales, todos los correos van al destinatario de prueba.",
+    //rules:
+    //  "Cada correo tiene un único intento. No hay reintento, reenvío ni cancelación: un correo en error queda en error. Entre el inicio de dos envíos pasan al menos 30 segundos.",
+    //testRecipient: "",
     states: { pending: "Pendiente", sending: "Enviando", sent: "Enviado", error: "Error" },
     totalsLabel: "Totales de la cola",
     inFlight: (count: number) => (count === 1 ? "1 envío en curso" : `${count} envíos en curso`),

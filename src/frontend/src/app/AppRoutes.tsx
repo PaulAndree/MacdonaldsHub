@@ -16,7 +16,6 @@ import RequirePermission from "../features/session/RequirePermission";
 import { useSession } from "../features/session/useSession";
 import { ErrorState, LoadingState } from "../ui/StateViews";
 import type { Area, Permission } from "./areas";
-import EnvironmentBanner from "./EnvironmentBanner";
 import Layout from "./Layout";
 import SessionBadge from "./SessionBadge";
 import NotFound from "./NotFound";
@@ -58,7 +57,6 @@ function Shell({ areas, exampleUi }: AppRoutesProps) {
   const banners: ReactNode = (
     <>
       {exampleUi?.banner}
-      {session.data?.environment === "test" && <EnvironmentBanner />}
     </>
   );
   // A batch the user has not confirmed is offered back on every screen except those that already

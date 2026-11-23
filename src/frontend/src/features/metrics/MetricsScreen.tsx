@@ -109,12 +109,11 @@ export default function MetricsScreen() {
           const noData = data.warnings.some((w) => w.code === "no_data");
           return (
             <>
-              <p className={data.environment === "test" ? "notice" : "muted"} role="note">
-                {data.environment === "test" ? t.envTest : t.envProduction}
-              </p>
-              <p role="note">
-                <strong>{t.criterion(t.dateKinds[data.dateKind])}</strong>
-              </p>
+              {data.environment !== "test" && (
+                <p className="muted" role="note">
+                  {t.envProduction}
+                </p>
+              )}
               {data.criteria.status === "example" && (
                 <p className="muted">
                   {t.examples} {data.criteria.pendingDecision && <PendingMarker id={data.criteria.pendingDecision} />}

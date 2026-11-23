@@ -50,14 +50,12 @@ describe("email queue states and totals (UI-07)", () => {
     await totals();
     expect(screen.queryByRole("button", { name: /reintent|reenvi|cancel/i })).not.toBeInTheDocument();
     expect(screen.getByText(t.noActions)).toBeInTheDocument();
-    expect(screen.getByText(t.rules, { exact: false })).toHaveTextContent("30 segundos");
   });
 
   it("labels the recipient as the test recipient", async () => {
     show();
     await totals();
     expect(screen.getAllByText("Destinatario de prueba").length).toBeGreaterThan(0);
-    expect(screen.getByText(t.testRecipient)).toBeInTheDocument();
   });
 
   it("filters the list by state without changing the totals", async () => {

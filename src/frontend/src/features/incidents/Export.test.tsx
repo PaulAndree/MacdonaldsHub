@@ -117,11 +117,6 @@ describe("export of incidents (RF-16)", () => {
     expect(sheet).not.toContain("12,50");
   });
 
-  it("says what the export contains and that absent values are never zero", async () => {
-    show();
-    expect(await screen.findByText(t.exportHelp)).toBeInTheDocument();
-  });
-
   it("reports a failed export instead of failing silently", async () => {
     captureDownload();
     show();
