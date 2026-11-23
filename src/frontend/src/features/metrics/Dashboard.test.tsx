@@ -141,10 +141,8 @@ describe("the recovered amount is explicit and absent values are not zero (RF-15
   it("an empty period says there is no data, with no amount shown as zero", async () => {
     show("/panel?dateKind=claim&from=2030-01-01");
     expect(await screen.findByText(t.noPeriod)).toBeInTheDocument();
-    const email = await channel(t.channels.email);
-    expect(kpi(email, t.kpi.claimedAmount)).toBe(t.noData);
-    expect(kpi(email, t.kpi.recoveredAmount)).toBe(t.noData);
-    expect(email.textContent).not.toMatch(/\b0,00|\b0 €/);
+    expect(screen.queryByRole("region", { name: t.channels.email })).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\b0,00|\b0 €/);
   });
 
   it("with claims but nothing recovered, says so instead of showing zero", async () => {
@@ -154,17 +152,21 @@ describe("the recovered amount is explicit and absent values are not zero (RF-15
     expect(kpi(email, t.kpi.recovered)).toBe("0");
   });
 
-  it("the example mode has no figure for a rate that cannot be worked out", async () => {
+  it("the rate is not calculable with the recovery date, and a real zero is shown as zero", async () => {
+    show("/panel?provider=just+eat&dateKind=recovery");
+    expect(kpi(await channel(t.channels.email), t.kpi.rate)).toBe(t.rateUnknown);
+  });
+
+  it("with a claim and no recovery the rate is a real 0 %, not unknown", async () => {
     show("/panel?provider=just+eat");
-    const email = await channel(t.channels.email);
-    expect(kpi(email, t.kpi.rate)).toBe(t.rateUnknown);
+    expect(kpi(await channel(t.channels.email), t.kpi.rate)).toBe("0,00 %");
   });
 });
 
 describe("incomplete data carries a warning (UI-06)", () => {
   it("warns that the total is incomplete and says how many incidents have no amount", async () => {
     show();
-    expect(await screen.findByText("Hay 1 incidencia sin importe a reclamar: el total está incompleto.")).toBeInTheDocument();
+    expect(await screen.findByText("Hay 1 incidencia sin importe: los totales están incompletos.")).toBeInTheDocument();
     const email = await channel(t.channels.email);
     const claimed = within(email).getByText(t.kpi.claimedAmount).closest(".kpi") as HTMLElement;
     expect(within(claimed).getByText(t.incomplete)).toBeInTheDocument();
@@ -180,7 +182,7 @@ describe("incomplete data carries a warning (UI-06)", () => {
   it("does not warn when every amount is known", async () => {
     show("/panel?provider=glovo");
     await channel(t.channels.glovo);
-    await waitFor(() => expect(screen.queryByText(/incidencia sin importe a reclamar/)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/incidencia sin importe/)).not.toBeInTheDocument());
   });
 
   it("marks the breakdown row whose amount is missing, with no total shown for it", async () => {
@@ -200,20 +202,20 @@ describe("incomplete data carries a warning (UI-06)", () => {
   });
 });
 
-describe("criteria not yet decided are shown as examples (P-04)", () => {
-  it("says the date default, the rate formula and the age criterion are design examples", async () => {
+describe("the criteria are the ones the administrator decided (P-04)", () => {
+  it("no longer presents the date default, the rate or the age as design examples", async () => {
     show();
     await channel(t.channels.email);
-    expect(screen.getByText(new RegExp(t.examples))).toBeInTheDocument();
-    expect(screen.getAllByText(/Pendiente de decisión \(P-04\)/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(new RegExp(t.examples))).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pendiente de decisión \(P-04\)/)).not.toBeInTheDocument();
   });
 
-  it("marks the rate as an example, with its digits kept", async () => {
+  it("gives the rate as recoveries over claims, with its digits and no example note", async () => {
     show();
     const email = await channel(t.channels.email);
     const card = within(email).getByText(t.kpi.rate).closest(".kpi") as HTMLElement;
-    expect(card).toHaveTextContent("36,92 %");
-    expect(card).toHaveTextContent(t.rateExample);
+    expect(card).toHaveTextContent("33,33 %"); // 1 recovery of 3 claims
+    expect(card).not.toHaveTextContent(t.rateExample);
   });
 });
 
@@ -229,10 +231,11 @@ describe("claims waiting for a result and their age (RF-15)", () => {
     expect(rows[1]).toHaveTextContent(t.pending.age(2));
   });
 
-  it("marks the age criterion as an example and links to each incident", async () => {
+  it("states the age criterion and links to each incident", async () => {
     show();
     const section = (await screen.findByRole("heading", { level: 2, name: t.pending.title })).closest("section") as HTMLElement;
-    expect(within(section).getByText(/Pendiente de decisión \(P-04\)/)).toBeInTheDocument();
+    expect(within(section).getByText(t.pending.note)).toBeInTheDocument();
+    expect(within(section).queryByText(/Pendiente de decisión/)).not.toBeInTheDocument();
     expect(within(section).getByRole("link", { name: "inc-001" })).toHaveAttribute("href", "/incidencias/inc-001");
   });
 

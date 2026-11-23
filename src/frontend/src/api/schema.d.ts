@@ -293,8 +293,9 @@ export interface paths {
         put?: never;
         /**
          * Save a manual entry after the administrator reviewed and confirmed it
-         * @description Creates no email. Whether a manual Uber Eats or Just Eat entry generates an email is
-         *     pending decision P-12, so the contract has no such option.
+         * @description A manual Uber Eats or Just Eat entry generates its email (decision P-12): the incident is
+         *     saved as `pending_send` together with one pending email, in the same transaction, and
+         *     nothing is sent by this operation. A Glovo entry generates no email and is claimed by hand.
          */
         post: operations["createManualIncident"];
         delete?: never;
@@ -398,7 +399,10 @@ export interface paths {
         };
         /**
          * Dashboard figures, always stating the date used
-         * @description Criteria and formulas stay examples while P-04 is pending. An absent amount is never counted as zero.
+         * @description Criteria decided by the administrator (P-04). A claim is an incident with a claim date and a
+         *     recovery is an incident marked `resolved`. The recovery rate is recoveries divided by claims,
+         *     by number, and is `null` when there are no claims or the recovery date is the one used. Known
+         *     amounts are added up and the missing ones are counted; an absent amount is never counted as zero.
          */
         get: operations["getMetrics"];
         put?: never;
@@ -813,7 +817,7 @@ export interface components {
             recoveredAmount: components["schemas"]["OptionalAmount"];
             /** @description Incidents in the figure that have no claim amount, so the sum is incomplete. */
             incompleteCount: number;
-            /** @description Recovered over claimed. Only an example while P-04 is pending; `null` when it cannot be computed. */
+            /** @description Recoveries over claims by number, with four decimals. `null` when there are no claims or the recovery date is the one used. */
             recoveryRate: string | null;
         };
         BreakdownRow: {
@@ -830,7 +834,7 @@ export interface components {
             incidentId: string;
             provider: components["schemas"]["Provider"];
             claimDate: components["schemas"]["IncidentDate"];
-            /** @description Days since the claim. The age criterion is only an example while P-04 is pending. */
+            /** @description Calendar days since the claim, in Europe/Madrid time. There is no threshold. */
             ageDays: number;
         };
         MetricsWarning: {
@@ -1559,8 +1563,8 @@ export interface operations {
     getMetrics: {
         parameters: {
             query?: {
-                /** @description Which date the range applies to. */
-                dateKind?: components["parameters"]["DateKind"];
+                /** @description Which date the range applies to. The default is the claim date. */
+                dateKind?: "incident" | "claim" | "recovery";
                 from?: components["parameters"]["DateFrom"];
                 to?: components["parameters"]["DateTo"];
                 provider?: components["parameters"]["FilterProvider"];

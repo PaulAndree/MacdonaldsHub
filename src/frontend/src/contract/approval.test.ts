@@ -62,7 +62,7 @@ describe("contract approval check (ADR-16)", () => {
     const unchanged = join(dir, "unchanged.yaml");
     const edited = join(dir, "edited.yaml");
     writeFileSync(unchanged, contract);
-    writeFileSync(edited, contract.replace("version: 0.1.0", "version: 0.2.0"));
+    writeFileSync(edited, contract.replace(`version: ${version}`, "version: 9.9.9"));
     const check = (file: string) =>
       spawnSync(process.execPath, [script, "check"], {
         env: { ...process.env, APPROVAL_FILE: approved, CONTRACT_FILE: file },
@@ -71,6 +71,6 @@ describe("contract approval check (ADR-16)", () => {
     expect(check(unchanged).status).toBe(0);
     const result = check(edited);
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("approved version 0.1.0, current 0.2.0");
+    expect(result.stderr).toContain(`approved version ${version}, current 9.9.9`);
   });
 });

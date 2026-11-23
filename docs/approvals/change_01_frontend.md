@@ -30,9 +30,21 @@ The administrator reviewed the twelve walkthroughs above in the deployed example
 - **Approved commit:** 3c438d1
 - **Date:** 2026-11-23
 
-<!-- approval: contractVersion=0.1.0 contractSha256=c993ba648f20bb1c83aed5dd29da37cdab838d098324e4514b317a8b23793b8e -->
+Recorded values of this first approval: contractVersion=0.1.0, contractSha256=c993ba648f20bb1c83aed5dd29da37cdab838d098324e4514b317a8b23793b8e. Superseded by the approval of 0.1.1 below.
 
 Any later change to `docs/api/openapi.yaml` makes `npm run approval:check` (and CI) fail until a new approval is recorded here.
+
+## Approval of contract 0.1.1
+
+On 2026-11-23, while implementing change 2 (`backend`), the administrator decided P-12 and P-04 and approved version 0.1.1 of the contract and the interface texts that follow from those decisions. No data structure changed; the design tag `frontend-design-v1` still names the approved layout.
+
+- **Manual entry (P-12):** an Uber Eats or Just Eat entry generates one pending email in the same transaction and a Glovo entry generates none. The interface says so instead of "Sin correo".
+- **Dashboard (P-04):** the default date is the claim date; the rate is recoveries over claims by number, not calculable without claims or with the recovery date; the age is in calendar days; known amounts are added and the missing ones are flagged. The criteria are no longer marked as examples.
+- **Contract version:** 0.1.1.
+- **Date:** 2026-11-23
+- **Commit:** the one that contains this record.
+
+<!-- approval: contractVersion=0.1.1 contractSha256=900c20ed90d12f6b1ae5b2fe263936b679bfe6f503bbdfde4c1fe22542526cdf -->
 
 ## Final check (9.3)
 

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Delivery Hub API contract",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "summary": "Operations the Delivery Hub interface needs from the backend.",
     "description": "Versioned contract between the frontend and the backend (ADR-16). Change 1 (`frontend`) uses it\nwith example data; change 2 (`backend`) implements it. The version in `info.version` is the\ncontract version recorded in the administrator's approval. Changing an approved contract needs\na new approval.\n\nConventions that apply to every operation:\n- Amounts are decimal strings (never JSON numbers) so source precision is kept. An absent amount\n  is `null`, never `\"0\"`.\n- The incident date is `YYYY-MM-DD` with an optional `HH:MM` time in Europe/Madrid. When the\n  source has no time, the time is `null`; `00:00` is never invented.\n- System timestamps (`createdAt`, `confirmedAt` and similar) are UTC instants.\n- Provider values are lowercase (`uber eats`, `just eat`, `glovo`). The key of an incident is\n  provider plus order ID.\n- Errors use the `Error` schema. 401 means no valid session, 403 means authenticated but not\n  authorized.\n"
   },
@@ -1367,7 +1367,7 @@
           "incidents"
         ],
         "summary": "Save a manual entry after the administrator reviewed and confirmed it",
-        "description": "Creates no email. Whether a manual Uber Eats or Just Eat entry generates an email is\npending decision P-12, so the contract has no such option.\n",
+        "description": "A manual Uber Eats or Just Eat entry generates its email (decision P-12): the incident is\nsaved as `pending_send` together with one pending email, in the same transaction, and\nnothing is sent by this operation. A Glovo entry generates no email and is claimed by hand.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1448,6 +1448,13 @@
                     "value": {
                       "code": "incident_exists",
                       "message": "Ya existe una incidencia con ese proveedor y ese Order ID."
+                    }
+                  },
+                  "noRecipient": {
+                    "summary": "An email is needed and no recipient is authorized",
+                    "value": {
+                      "code": "recipient_not_configured",
+                      "message": "No hay un destinatario autorizado configurado para los correos."
                     }
                   }
                 }
@@ -1995,10 +2002,21 @@
           "metrics"
         ],
         "summary": "Dashboard figures, always stating the date used",
-        "description": "Criteria and formulas stay examples while P-04 is pending. An absent amount is never counted as zero.",
+        "description": "Criteria decided by the administrator (P-04). A claim is an incident with a claim date and a\nrecovery is an incident marked `resolved`. The recovery rate is recoveries divided by claims,\nby number, and is `null` when there are no claims or the recovery date is the one used. Known\namounts are added up and the missing ones are counted; an absent amount is never counted as zero.\n",
         "parameters": [
           {
-            "$ref": "#/components/parameters/DateKind"
+            "name": "dateKind",
+            "in": "query",
+            "description": "Which date the range applies to. The default is the claim date.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "incident",
+                "claim",
+                "recovery"
+              ],
+              "default": "claim"
+            }
           },
           {
             "$ref": "#/components/parameters/DateFrom"
@@ -2028,8 +2046,8 @@
                       "environment": "test",
                       "dateKind": "claim",
                       "criteria": {
-                        "status": "example",
-                        "pendingDecision": "P-04"
+                        "status": "approved",
+                        "pendingDecision": null
                       },
                       "channels": [
                         {
@@ -2039,7 +2057,7 @@
                           "recoveredCount": 1,
                           "recoveredAmount": "12.00",
                           "incompleteCount": 1,
-                          "recoveryRate": "0.1920"
+                          "recoveryRate": "0.2000"
                         },
                         {
                           "channel": "glovo",
@@ -2048,7 +2066,7 @@
                           "recoveredCount": 1,
                           "recoveredAmount": "8.00",
                           "incompleteCount": 0,
-                          "recoveryRate": "0.2000"
+                          "recoveryRate": "0.5000"
                         }
                       ],
                       "breakdown": [
@@ -2082,7 +2100,7 @@
                       "warnings": [
                         {
                           "code": "incomplete_amounts",
-                          "message": "Hay 1 incidencia sin importe a reclamar: el total está incompleto.",
+                          "message": "Hay 1 incidencia sin importe: los totales están incompletos.",
                           "count": 1
                         }
                       ]
@@ -2094,8 +2112,8 @@
                       "environment": "test",
                       "dateKind": "incident",
                       "criteria": {
-                        "status": "example",
-                        "pendingDecision": "P-04"
+                        "status": "approved",
+                        "pendingDecision": null
                       },
                       "channels": [],
                       "breakdown": [],
@@ -3755,7 +3773,7 @@
               "null"
             ],
             "pattern": "^\\d+(\\.\\d+)?$",
-            "description": "Recovered over claimed. Only an example while P-04 is pending; `null` when it cannot be computed."
+            "description": "Recoveries over claims by number, with four decimals. `null` when there are no claims or the recovery date is the one used."
           }
         }
       },
@@ -3822,7 +3840,7 @@
           "ageDays": {
             "type": "integer",
             "minimum": 0,
-            "description": "Days since the claim. The age criterion is only an example while P-04 is pending."
+            "description": "Calendar days since the claim, in Europe/Madrid time. There is no threshold."
           }
         }
       },

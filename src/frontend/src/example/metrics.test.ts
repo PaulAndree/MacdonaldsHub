@@ -27,19 +27,31 @@ describe("example dashboard figures (RF-15)", () => {
     expect(warning.message).toContain("1 incidencia sin importe");
   });
 
-  it("the rate is an example criterion and is only given when it can be worked out", () => {
+  it("the rate is recoveries over claims by number, with the criteria approved (P-04)", () => {
     const m = run();
-    expect(channel(m, "email").recoveryRate).toBe("0.3692");
-    expect(channel(m, "glovo").recoveryRate).toBe("0.8000");
-    expect(m.criteria).toEqual({ status: "example", pendingDecision: "P-04" });
-    const empty = run({ provider: "glovo", from: "2030-01-01" });
-    expect(channel(empty, "glovo").recoveryRate).toBeNull();
+    // Email: 3 claims (inc-001, inc-004, inc-006), 1 of them resolved. Glovo: 1 claim, resolved.
+    expect(channel(m, "email").recoveryRate).toBe("0.3333");
+    expect(channel(m, "glovo").recoveryRate).toBe("1.0000");
+    expect(m.criteria).toEqual({ status: "approved", pendingDecision: null });
   });
 
-  it("an empty channel has no amounts, which is not zero", () => {
+  it("the rate is not calculable without claims, nor by recovery date", () => {
+    const store = seedIncidents();
+    for (const i of store.items) i.claimDate = null;
+    expect(channel(run({}, store), "email").recoveryRate).toBeNull();
+    expect(channel(run({ dateKind: "recovery" }), "email").recoveryRate).toBeNull();
+  });
+
+  it("an empty period has no channels, and no amount is shown as zero", () => {
     const m = run({ provider: "glovo", from: "2030-01-01" });
-    expect(channel(m, "glovo")).toMatchObject({ claimedCount: 0, claimedAmount: null, recoveredAmount: null, incompleteCount: 0 });
-    expect(m.warnings.map((w) => w.code)).toContain("no_data");
+    expect(m.channels).toEqual([]);
+    expect(m.warnings.map((w) => w.code)).toEqual(["no_data"]);
+  });
+
+  it("a channel with no claim has no amounts, which is not zero", () => {
+    const store = seedIncidents();
+    for (const i of store.items.filter((x) => x.channel === "glovo")) i.claimDate = null;
+    expect(channel(run({}, store), "glovo")).toMatchObject({ claimedCount: 0, claimedAmount: null, incompleteCount: 0 });
   });
 
   it("breaks the figures down by provider and branch, with a missing branch as null", () => {

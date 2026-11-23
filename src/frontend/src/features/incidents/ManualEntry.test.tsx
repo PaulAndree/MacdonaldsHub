@@ -64,11 +64,11 @@ describe("the form (RF-22)", () => {
     expect(screen.getByText(t.orderIdHelp)).toBeInTheDocument();
   });
 
-  it("offers no way to send an email, and shows that decision as pending (P-12)", async () => {
+  it("says which providers generate an email, and offers no way to send one (P-12)", async () => {
     show();
     await screen.findByRole("form", { name: es.titles.manualEntry });
-    expect(screen.getByText(/Pendiente de decisión \(P-12\)/)).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(t.emailText))).toBeInTheDocument();
+    expect(screen.getByText(t.emailGeneral)).toBeInTheDocument();
+    expect(screen.queryByText(/Pendiente de decisión/)).not.toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/correo|email|enviar/i)).not.toBeInTheDocument();
   });
@@ -150,13 +150,13 @@ describe("a new entry needs review and confirmation before it is saved (UI-09)",
     expect(review).toHaveTextContent("2026-11-21 20:22");
     expect(review).toHaveTextContent("18,75 €");
     expect(review).toHaveTextContent("Falta una bebida");
-    expect(within(review).getByText(/Pendiente de decisión \(P-12\)/)).toBeInTheDocument();
+    expect(within(review).getByText(t.emailWill)).toBeInTheDocument();
     // Not saved: the server still has the same incidents.
     expect(await total()).toBe(6);
     expect(requests).toEqual(["/api/incidents/manual/check"]);
   });
 
-  it("saves only when the administrator confirms, without email, and links to it", async () => {
+  it("saves only when the administrator confirms, with its email pending, and links to it", async () => {
     show();
     await fillNew();
     await check();
@@ -167,11 +167,11 @@ describe("a new entry needs review and confirmation before it is saved (UI-09)",
     expect(requests).toEqual(["/api/incidents/manual/check", "/api/incidents/manual"]);
 
     const saved = (await api("/api/incidents")).items.find((i: any) => i.orderId === "UE-200001");
-    expect(saved.status).toBe("imported_no_email");
+    expect(saved.status).toBe("pending_send");
     expect(saved.batchId).toBeNull();
     await userEvent.click(within(done).getByRole("link", { name: t.open }));
     expect(await screen.findByRole("heading", { level: 1, name: es.incidents.detailTitle("UE-200001") })).toBeInTheDocument();
-    expect(screen.queryByText(es.incidents.email.pendingTitle)).not.toBeInTheDocument();
+    expect(screen.getByText(es.incidents.email.pendingTitle)).toBeInTheDocument(); // nothing is sent yet
     expect(screen.getByText(es.incidents.fields.manualEntry, { selector: "dd" })).toBeInTheDocument();
   });
 
@@ -216,7 +216,7 @@ describe("a new entry needs review and confirmation before it is saved (UI-09)",
     expect(saved).toMatchObject({ claimAmount: "0.1234", providerCosts: "3.5", total: "0" });
   });
 
-  it("works for Glovo too, still without email", async () => {
+  it("works for Glovo too, which has no email", async () => {
     show();
     await fillNew({ provider: "glovo", orderId: "GL-1" });
     await check();
