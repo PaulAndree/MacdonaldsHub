@@ -60,14 +60,14 @@ Source: `docs/change_01_frontend.md`. These tasks build a navigable interface on
 
 - [x] 8.1 Add the example-mode build argument to the frontend `Dockerfile` and the build scripts. Verify both images build and the standard image has no example marker.
 - [x] 8.2 Add the CI job that builds both variants and fails when the standard bundle contains an example marker. Verify it fails against a build that includes one.
-- [ ] 8.3 Add the example-mode input to the deploy workflow with the `-example` tag suffix and the production guard. Verify the guard rejects production with example mode and a test-environment deployment succeeds.
+- [x] 8.3 Add the example-mode input to the deploy workflow with the `-example` tag suffix and the production guard. Verify the guard rejects production with example mode and a test-environment deployment succeeds.
 - [x] 8.4 Add automated accessibility checks over every area and a manual keyboard checklist in `docs/approvals/keyboard-checklist.md`. Verify the automated checks pass and the checklist is completed for the import review flow (RNF-08).
-- [ ] 8.5 Deploy the example build to the `test` environment. Verify the example notice and test identification show and Google sign-in still protects access.
+- [x] 8.5 Deploy the example build to the `test` environment. Verify the example notice and test identification show and Google sign-in still protects access.
 
 ## 9. Review and approval
 
-- [ ] 9.1 Walk through UI-01 to UI-12 in the deployed example build following the walkthroughs of `docs/change_01_frontend.md` and the scenario switcher, fix any gap found, and record each result in `docs/approvals/change_01_frontend.md`. Verify all twelve rows are filled with a result.
-- [ ] 9.2 **[approval]** Obtain the administrator's explicit approval of layout, navigation, flows, messages and actions, or their requested adjustments, and tag the design version. Verify the record names the design version, the contract `info.version`, the commit and the date, with no personal data.
+- [x] 9.1 Walk through UI-01 to UI-12 in the deployed example build following the walkthroughs of `docs/change_01_frontend.md` and the scenario switcher, fix any gap found, and record each result in `docs/approvals/change_01_frontend.md`. Verify all twelve rows are filled with a result.
+- [x] 9.2 **[approval]** Obtain the administrator's explicit approval of layout, navigation, flows, messages and actions, or their requested adjustments, and tag the design version. Verify the record names the design version, the contract `info.version`, the commit and the date, with no personal data.
 - [ ] 9.3 Run the final check: CI green, both images build, the standard image contains no example data, and no secret appears in the repository. Verify the results are recorded in the approval document.
 
 ## Workflow follow-up
