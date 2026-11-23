@@ -36,4 +36,15 @@ Any later change to `docs/api/openapi.yaml` makes `npm run approval:check` (and 
 
 ## Final check (9.3)
 
-Pending: CI green, both images build, the standard image has no example data, no secret in the repository.
+Run on `main` at merge commit `d9ece75` (PR #6, which contains the approved commit `3c438d1`), on 2026-11-23.
+
+| Check | Result |
+|---|---|
+| CI on `d9ece75` (backend, frontend, infra, images) | All four jobs succeeded |
+| Both images build (`docker build` of the backend and the frontend, standard and `EXAMPLE_MODE=true`) | Yes |
+| Standard frontend image contains no example data | 0 files with example markers; no `mockServiceWorker.js` |
+| Example frontend image contains the example layer | 1 file with markers and `mockServiceWorker.js` present (expected) |
+| Test deployment of the example build, banners and Google sign-in (8.5) | Confirmed by the administrator |
+| No secret in the repository | No `.env` file, key or certificate is tracked. A scan of the tracked files found only: the public Azurite development key (docker-compose, local test scripts), fixture strings in tests, and built-in Azure role-definition IDs in Bicep. No personal email or tenant, subscription or client ID |
+
+Result: change 1 is ready to archive.

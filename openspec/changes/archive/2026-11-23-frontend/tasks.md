@@ -68,7 +68,7 @@ Source: `docs/change_01_frontend.md`. These tasks build a navigable interface on
 
 - [x] 9.1 Walk through UI-01 to UI-12 in the deployed example build following the walkthroughs of `docs/change_01_frontend.md` and the scenario switcher, fix any gap found, and record each result in `docs/approvals/change_01_frontend.md`. Verify all twelve rows are filled with a result.
 - [x] 9.2 **[approval]** Obtain the administrator's explicit approval of layout, navigation, flows, messages and actions, or their requested adjustments, and tag the design version. Verify the record names the design version, the contract `info.version`, the commit and the date, with no personal data.
-- [ ] 9.3 Run the final check: CI green, both images build, the standard image contains no example data, and no secret appears in the repository. Verify the results are recorded in the approval document.
+- [x] 9.3 Run the final check: CI green, both images build, the standard image contains no example data, and no secret appears in the repository. Verify the results are recorded in the approval document.
 
 ## Workflow follow-up
 

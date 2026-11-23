@@ -55,7 +55,6 @@ export default function ConfirmationPanel({ batch }: { batch: Batch }) {
   return (
     <section id="confirmacion" className="card" aria-labelledby="confirm-title">
       <h2 id="confirm-title">{t.title}</h2>
-      <h3>{t.summaryTitle}</h3>
       <dl className="facts">
         <dt>{t.incidents}</dt>
         <dd>{data.incidentsToCreate}</dd>
