@@ -1,0 +1,2132 @@
+openapi: 3.1.0
+info:
+  title: Delivery Hub API contract
+  version: 0.1.0
+  summary: Operations the Delivery Hub interface needs from the backend.
+  description: |
+    Versioned contract between the frontend and the backend (ADR-16). Change 1 (`frontend`) uses it
+    with example data; change 2 (`backend`) implements it. The version in `info.version` is the
+    contract version recorded in the administrator's approval. Changing an approved contract needs
+    a new approval.
+
+    Conventions that apply to every operation:
+    - Amounts are decimal strings (never JSON numbers) so source precision is kept. An absent amount
+      is `null`, never `"0"`.
+    - The incident date is `YYYY-MM-DD` with an optional `HH:MM` time in Europe/Madrid. When the
+      source has no time, the time is `null`; `00:00` is never invented.
+    - System timestamps (`createdAt`, `confirmedAt` and similar) are UTC instants.
+    - Provider values are lowercase (`uber eats`, `just eat`, `glovo`). The key of an incident is
+      provider plus order ID.
+    - Errors use the `Error` schema. 401 means no valid session, 403 means authenticated but not
+      authorized.
+security:
+  - easyAuthSession: []
+servers:
+  - url: /
+    description: Same origin; the frontend proxy forwards /api to the internal API.
+tags:
+  - name: session
+    description: Identity, role, environment and permissions of the signed-in user.
+  - name: batches
+    description: Upload, preparation, review, confirmation and discard of import batches.
+  - name: incidents
+    description: Confirmed incidents, manual entry, claim results and corrections.
+  - name: metrics
+    description: Dashboard figures by channel, with explicit recovered amounts and incomplete data flagged.
+  - name: email-queue
+    description: Email states, totals and the global pause. One attempt per email, no retry.
+paths:
+  /api/session:
+    get:
+      operationId: getSession
+      tags: [session]
+      summary: Identity, role, environment and permissions of the signed-in user
+      description: Lets the interface show the session and filter its navigation. Authorization is still enforced by the API on every operation.
+      responses:
+        '200':
+          description: The authenticated, authorized user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+              examples:
+                administrator:
+                  summary: Administrator in the test environment
+                  value:
+                    identifier: admin-1
+                    email: administrador@example.test
+                    role: administrator
+                    environment: test
+                    permissions: [import, confirm, incidents_read, incidents_write, metrics_read, queue_control]
+                globalManager:
+                  summary: User with the global manager role (read-only)
+                  value:
+                    identifier: consulta-1
+                    email: consulta@example.test
+                    role: global_manager
+                    environment: test
+                    permissions: [incidents_read, metrics_read]
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/batches:
+    post:
+      operationId: createBatch
+      tags: [batches]
+      summary: Register a batch and get a temporary upload permission
+      description: Fails with 409 when the user already has an unconfirmed batch (one per user).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBatchRequest'
+            examples:
+              file:
+                summary: An XLSX file
+                value:
+                  fileName: incidencias-noviembre.xlsx
+                  sizeBytes: 48213
+      responses:
+        '201':
+          description: Batch created with its upload permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchUpload'
+              examples:
+                created:
+                  summary: Batch ready for upload
+                  value:
+                    batch:
+                      id: lote-0007
+                      state: uploaded
+                      fileName: incidencias-noviembre.xlsx
+                      createdAt: '2026-11-22T09:30:00Z'
+                      reviewedVersion: null
+                      rejection: null
+                      identicalFile: null
+                      summary: null
+                    upload:
+                      url: https://example.invalid/uploads/lote-0007?sp=c
+                      method: PUT
+                      headers:
+                        x-ms-blob-type: BlockBlob
+                      expiresAt: '2026-11-22T09:45:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: The user already has an unconfirmed batch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                pendingBatchExists:
+                  summary: A batch is already under review
+                  value:
+                    code: unconfirmed_batch_exists
+                    message: Ya tiene un lote sin confirmar. Confírmelo o cancélelo antes de subir otro archivo.
+                    details:
+                      batchId: lote-0006
+  /api/batches/pending:
+    get:
+      operationId: getPendingBatch
+      tags: [batches]
+      summary: The user's unconfirmed batch, if any
+      description: Used to show the notice of a batch under review when the user returns. There is no expiry.
+      responses:
+        '200':
+          description: The unconfirmed batch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Batch'
+              examples:
+                inReview:
+                  summary: A batch waiting for review
+                  value:
+                    id: lote-0006
+                    state: in_review
+                    fileName: incidencias-octubre.xlsx
+                    createdAt: '2026-11-21T17:10:00Z'
+                    reviewedVersion: d7a2cefd1fcf1d2488d2d3eaea4d6aacc09001517debff580cc4825ffdb461b7
+                    rejection: null
+                    identicalFile: null
+                    summary:
+                      totals: { new: 4, duplicate: 1, conflict: 1, error: 1 }
+                      incidentsToCreate: 4
+                      emailsToGenerate: 3
+                      withoutEmail: 1
+        '204':
+          description: The user has no unconfirmed batch.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/batches/discard-unconfirmed:
+    post:
+      operationId: discardUnconfirmedBatches
+      tags: [batches]
+      summary: Discard all of the user's unconfirmed batches
+      description: Used by the Cerrar sesión button. It discards batches only and does not end the Google session.
+      responses:
+        '200':
+          description: The batches that were discarded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscardResult'
+              examples:
+                one:
+                  summary: One batch discarded
+                  value:
+                    discarded: 1
+                    batchIds: [lote-0006]
+                none:
+                  summary: Nothing to discard
+                  value:
+                    discarded: 0
+                    batchIds: []
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/batches/{batchId}:
+    parameters:
+      - $ref: '#/components/parameters/BatchId'
+    get:
+      operationId: getBatch
+      tags: [batches]
+      summary: State of a batch
+      responses:
+        '200':
+          description: The batch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Batch'
+              examples:
+                processing:
+                  summary: File uploaded, being processed
+                  value:
+                    id: lote-0007
+                    state: processing
+                    fileName: incidencias-noviembre.xlsx
+                    createdAt: '2026-11-22T09:30:00Z'
+                    reviewedVersion: null
+                    rejection: null
+                    identicalFile: null
+                    summary: null
+                inReview:
+                  summary: Prepared, waiting for the administrator
+                  value:
+                    id: lote-0007
+                    state: in_review
+                    fileName: incidencias-noviembre.xlsx
+                    createdAt: '2026-11-22T09:30:00Z'
+                    reviewedVersion: d7a2cefd1fcf1d2488d2d3eaea4d6aacc09001517debff580cc4825ffdb461b7
+                    rejection: null
+                    identicalFile: null
+                    summary:
+                      totals: { new: 4, duplicate: 1, conflict: 1, error: 1 }
+                      incidentsToCreate: 4
+                      emailsToGenerate: 3
+                      withoutEmail: 1
+                inReviewIdenticalFile:
+                  summary: Prepared, and the file matches a confirmed one
+                  value:
+                    id: lote-0008
+                    state: in_review
+                    fileName: incidencias-noviembre.xlsx
+                    createdAt: '2026-11-22T10:05:00Z'
+                    reviewedVersion: d7a2cefd1fcf1d2488d2d3eaea4d6aacc09001517debff580cc4825ffdb461b7
+                    rejection: null
+                    identicalFile:
+                      confirmedBatchId: lote-0005
+                      confirmedAt: '2026-11-20T12:00:00Z'
+                    summary:
+                      totals: { new: 0, duplicate: 7, conflict: 0, error: 0 }
+                      incidentsToCreate: 0
+                      emailsToGenerate: 0
+                      withoutEmail: 0
+                rejectedMissingHeader:
+                  summary: Rejected, a required header is missing
+                  value:
+                    id: lote-0009
+                    state: rejected
+                    fileName: sin-order-id.xlsx
+                    createdAt: '2026-11-22T10:20:00Z'
+                    reviewedVersion: null
+                    rejection:
+                      reason: missing_required_header
+                      detail: Order ID
+                    identicalFile: null
+                    summary: null
+                rejectedMultipleWorksheets:
+                  summary: Rejected, the file has several worksheets
+                  value:
+                    id: lote-0010
+                    state: rejected
+                    fileName: dos-hojas.xlsx
+                    createdAt: '2026-11-22T10:25:00Z'
+                    reviewedVersion: null
+                    rejection:
+                      reason: multiple_worksheets
+                      detail: null
+                    identicalFile: null
+                    summary: null
+                rejectedCorruptFile:
+                  summary: Rejected, the file is corrupt or protected
+                  value:
+                    id: lote-0011
+                    state: rejected
+                    fileName: protegido.xlsx
+                    createdAt: '2026-11-22T10:30:00Z'
+                    reviewedVersion: null
+                    rejection:
+                      reason: corrupt_or_protected_file
+                      detail: null
+                    identicalFile: null
+                    summary: null
+                discarded:
+                  summary: Discarded, it can no longer be confirmed
+                  value:
+                    id: lote-0006
+                    state: discarded
+                    fileName: incidencias-octubre.xlsx
+                    createdAt: '2026-11-21T17:10:00Z'
+                    reviewedVersion: null
+                    rejection: null
+                    identicalFile: null
+                    summary: null
+                confirmed:
+                  summary: Confirmed
+                  value:
+                    id: lote-0005
+                    state: confirmed
+                    fileName: incidencias-septiembre.xlsx
+                    createdAt: '2026-11-20T11:40:00Z'
+                    reviewedVersion: d7a2cefd1fcf1d2488d2d3eaea4d6aacc09001517debff580cc4825ffdb461b7
+                    rejection: null
+                    identicalFile: null
+                    summary:
+                      totals: { new: 3, duplicate: 0, conflict: 0, error: 0 }
+                      incidentsToCreate: 3
+                      emailsToGenerate: 2
+                      withoutEmail: 1
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/batches/{batchId}/uploaded:
+    parameters:
+      - $ref: '#/components/parameters/BatchId'
+    post:
+      operationId: completeUpload
+      tags: [batches]
+      summary: Record that the upload finished and request processing
+      responses:
+        '202':
+          description: Processing was requested.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Batch'
+              examples:
+                processing:
+                  summary: Processing requested
+                  value:
+                    id: lote-0007
+                    state: processing
+                    fileName: incidencias-noviembre.xlsx
+                    createdAt: '2026-11-22T09:30:00Z'
+                    reviewedVersion: null
+                    rejection: null
+                    identicalFile: null
+                    summary: null
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/batches/{batchId}/rows:
+    parameters:
+      - $ref: '#/components/parameters/BatchId'
+    get:
+      operationId: listBatchRows
+      tags: [batches]
+      summary: Rows of a prepared batch with their class and reason
+      description: The classification comes from the backend; the interface never recomputes it.
+      parameters:
+        - name: class
+          in: query
+          schema:
+            $ref: '#/components/schemas/RowClass'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: One page of rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RowPage'
+              examples:
+                mixed:
+                  summary: Rows of the four classes
+                  value:
+                    page: 1
+                    pageSize: 50
+                    total: 7
+                    totalsByClass: { new: 4, duplicate: 1, conflict: 1, error: 1 }
+                    items:
+                      - rowNumber: 2
+                        class: new
+                        reason: null
+                        fields: { provider: uber eats, orderId: UE-100234, incidentDate: '2026-11-18', incidentTime: '20:22', branch: centro, claimAmount: '12.50', providerCosts: null, total: null, description: null }
+                        comparison: null
+                        repeatedInFile: []
+                      - rowNumber: 3
+                        class: new
+                        reason: null
+                        fields: { provider: glovo, orderId: GL-77881, incidentDate: '2026-11-18', incidentTime: null, branch: null, claimAmount: null, providerCosts: null, total: null, description: null }
+                        comparison: null
+                        repeatedInFile: []
+                      - rowNumber: 4
+                        class: new
+                        reason: null
+                        fields: { provider: just eat, orderId: JE-5521A, incidentDate: '2026-11-19', incidentTime: null, branch: norte, claimAmount: '0.1234', providerCosts: '3.00', total: '3.1234', description: Falta una bebida }
+                        comparison: null
+                        repeatedInFile: []
+                      - rowNumber: 5
+                        class: duplicate
+                        reason: Ya existe una incidencia con la misma clave y los mismos datos.
+                        fields: { provider: uber eats, orderId: UE-099871, incidentDate: '2026-11-10', incidentTime: null, branch: centro, claimAmount: '8.00', providerCosts: null, total: null, description: null }
+                        comparison: null
+                        repeatedInFile: []
+                      - rowNumber: 6
+                        class: conflict
+                        reason: Ya existe una incidencia con la misma clave pero con datos distintos.
+                        fields: { provider: just eat, orderId: JE-4410B, incidentDate: '2026-11-12', incidentTime: null, branch: norte, claimAmount: '15.00', providerCosts: null, total: null, description: null }
+                        comparison:
+                          existing: { provider: just eat, orderId: JE-4410B, incidentDate: '2026-11-12', incidentTime: null, branch: norte, claimAmount: '9.50', providerCosts: null, total: null, description: null }
+                          differingFields: [claimAmount]
+                        repeatedInFile: []
+                      - rowNumber: 7
+                        class: error
+                        reason: La fecha 12/11/2026 no tiene el formato YYYY-MM-DD.
+                        fields: { provider: uber eats, orderId: UE-100300, incidentDate: 12/11/2026, incidentTime: null, branch: desconocida, claimAmount: null, providerCosts: null, total: null, description: null }
+                        comparison: null
+                        repeatedInFile: []
+                      - rowNumber: 8
+                        class: new
+                        reason: null
+                        fields: { provider: uber eats, orderId: UE-100301, incidentDate: '2026-11-19', incidentTime: '13:05', branch: centro, claimAmount: '21.00', providerCosts: null, total: null, description: null }
+                        comparison: null
+                        repeatedInFile: []
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/batches/{batchId}/excluded-report:
+    parameters:
+      - $ref: '#/components/parameters/BatchId'
+    get:
+      operationId: downloadExcludedReport
+      tags: [batches]
+      summary: XLSX report of the excluded rows with their reasons
+      description: Lets the administrator correct and upload again (RF-20).
+      responses:
+        '200':
+          description: The report file.
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/batches/{batchId}/confirmation-summary:
+    parameters:
+      - $ref: '#/components/parameters/BatchId'
+    get:
+      operationId: getConfirmationSummary
+      tags: [batches]
+      summary: What confirming this batch will do
+      responses:
+        '200':
+          description: The summary shown before the single confirm action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmationSummary'
+              examples:
+                default:
+                  summary: Summary with the test recipient and the example template
+                  value:
+                    batchId: lote-0007
+                    reviewedVersion: d7a2cefd1fcf1d2488d2d3eaea4d6aacc09001517debff580cc4825ffdb461b7
+                    incidentsToCreate: 4
+                    emailsToGenerate: 3
+                    withoutEmail: 1
+                    excluded: 3
+                    recipient:
+                      kind: test
+                      label: Destinatario de prueba
+                    template:
+                      subject: Reclamación de incidente
+                      body: Estimados socios Ubereats, remitimos el siguiente incidente No Incidente {orderId} para su reclamación. Un saludo Macdonalds
+                      isFinal: false
+                      pendingDecision: P-03
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/batches/{batchId}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/BatchId'
+    post:
+      operationId: confirmBatch
+      tags: [batches]
+      summary: Confirm the reviewed batch
+      description: Idempotent. There is no undo and emails cannot be cancelled afterwards.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmRequest'
+            examples:
+              reviewed:
+                summary: The reviewed version
+                value:
+                  reviewedVersion: d7a2cefd1fcf1d2488d2d3eaea4d6aacc09001517debff580cc4825ffdb461b7
+      responses:
+        '200':
+          description: The stored confirmation result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmationResult'
+              examples:
+                confirmed:
+                  summary: First confirmation
+                  value:
+                    batchId: lote-0007
+                    confirmedAt: '2026-11-22T09:50:00Z'
+                    createdIncidents: 4
+                    pendingEmails: 3
+                    withoutEmail: 1
+                    excluded:
+                      - { rowNumber: 5, class: duplicate, reason: Ya existe una incidencia con la misma clave y los mismos datos. }
+                      - { rowNumber: 6, class: conflict, reason: Ya existe una incidencia con la misma clave pero con datos distintos. }
+                      - { rowNumber: 7, class: error, reason: La fecha 12/11/2026 no tiene el formato YYYY-MM-DD. }
+                    excludedAtConfirmation: []
+                    alreadyConfirmed: false
+                repeated:
+                  summary: A repeated confirmation returns the stored result
+                  value:
+                    batchId: lote-0007
+                    confirmedAt: '2026-11-22T09:50:00Z'
+                    createdIncidents: 4
+                    pendingEmails: 3
+                    withoutEmail: 1
+                    excluded: []
+                    excludedAtConfirmation: []
+                    alreadyConfirmed: true
+                withNewMatches:
+                  summary: A row became a duplicate between review and confirmation
+                  value:
+                    batchId: lote-0007
+                    confirmedAt: '2026-11-22T09:50:00Z'
+                    createdIncidents: 3
+                    pendingEmails: 2
+                    withoutEmail: 1
+                    excluded: []
+                    excludedAtConfirmation:
+                      - { rowNumber: 4, class: duplicate, reason: Otro lote confirmó esta incidencia mientras se revisaba. }
+                    alreadyConfirmed: false
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The batch cannot be confirmed in its current state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                discarded:
+                  summary: The batch was discarded
+                  value:
+                    code: batch_discarded
+                    message: El lote fue descartado y ya no se puede confirmar.
+        '422':
+          description: The reviewed version does not match the uploaded file.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                versionMismatch:
+                  summary: A different file version
+                  value:
+                    code: reviewed_version_mismatch
+                    message: La versión revisada no coincide con el archivo subido.
+  /api/batches/{batchId}/discard:
+    parameters:
+      - $ref: '#/components/parameters/BatchId'
+    post:
+      operationId: discardBatch
+      tags: [batches]
+      summary: Cancel an unconfirmed batch
+      description: Allowed only before confirmation. Deletes the file and the prepared rows.
+      responses:
+        '200':
+          description: The batch is now discarded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Batch'
+              examples:
+                discarded:
+                  summary: Batch discarded
+                  value:
+                    id: lote-0007
+                    state: discarded
+                    fileName: incidencias-noviembre.xlsx
+                    createdAt: '2026-11-22T09:30:00Z'
+                    reviewedVersion: null
+                    rejection: null
+                    identicalFile: null
+                    summary: null
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A confirmed batch cannot be cancelled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                alreadyConfirmed:
+                  summary: The batch is already confirmed
+                  value:
+                    code: batch_already_confirmed
+                    message: El lote ya está confirmado y no se puede cancelar ni deshacer.
+  /api/incidents:
+    get:
+      operationId: listIncidents
+      tags: [incidents]
+      summary: List confirmed incidents with filters
+      parameters:
+        - $ref: '#/components/parameters/FilterProvider'
+        - $ref: '#/components/parameters/FilterBranch'
+        - $ref: '#/components/parameters/FilterStatus'
+        - $ref: '#/components/parameters/DateKind'
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: One page of incidents that match the filters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentPage'
+              examples:
+                default:
+                  summary: Incidents in several states, some with absent values
+                  value:
+                    page: 1
+                    pageSize: 50
+                    total: 4
+                    items:
+                      - { id: inc-001, batchId: lote-0005, provider: uber eats, orderId: UE-098001, incidentDate: '2026-11-10', incidentTime: '19:40', branch: centro, claimAmount: '12.50', providerCosts: null, total: null, description: null, status: claimed, channel: email, claimDate: '2026-11-20', recoveryDate: null, recoveredAmount: null, result: null }
+                      - { id: inc-002, batchId: lote-0005, provider: just eat, orderId: JE-44100, incidentDate: '2026-11-11', incidentTime: null, branch: null, claimAmount: null, providerCosts: null, total: null, description: null, status: send_error, channel: email, claimDate: null, recoveryDate: null, recoveredAmount: null, result: null }
+                      - { id: inc-003, batchId: lote-0005, provider: glovo, orderId: GL-77001, incidentDate: '2026-11-12', incidentTime: null, branch: norte, claimAmount: '30.00', providerCosts: '2.00', total: '32.00', description: Pedido cancelado, status: imported_no_email, channel: glovo, claimDate: null, recoveryDate: null, recoveredAmount: null, result: null }
+                      - { id: inc-004, batchId: lote-0004, provider: uber eats, orderId: UE-097500, incidentDate: '2026-10-30', incidentTime: null, branch: centro, claimAmount: '20.00', providerCosts: null, total: null, description: null, status: resolved, channel: email, claimDate: '2026-11-02', recoveryDate: '2026-11-15', recoveredAmount: '12.00', result: resolved }
+                empty:
+                  summary: No incident matches the filters
+                  value:
+                    page: 1
+                    pageSize: 50
+                    total: 0
+                    items: []
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/incidents/export:
+    get:
+      operationId: exportIncidents
+      tags: [incidents]
+      summary: XLSX export of the incidents that match the filters
+      description: Absent values stay explicit (Sin sucursal, unknown amount); they are never exported as zero.
+      parameters:
+        - $ref: '#/components/parameters/FilterProvider'
+        - $ref: '#/components/parameters/FilterBranch'
+        - $ref: '#/components/parameters/FilterStatus'
+        - $ref: '#/components/parameters/DateKind'
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+      responses:
+        '200':
+          description: The export file.
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/incidents/manual/check:
+    post:
+      operationId: checkManualIncident
+      tags: [incidents]
+      summary: Check a manual entry by provider and order ID before reviewing it
+      description: Never creates an incident.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentCore'
+            examples:
+              newEntry:
+                summary: A new incident
+                value: { provider: uber eats, orderId: UE-200001, incidentDate: '2026-11-21', incidentTime: null, branch: centro, claimAmount: '18.75', providerCosts: null, total: null, description: null }
+      responses:
+        '200':
+          description: Whether the key is new, a duplicate or in conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualCheckResult'
+              examples:
+                new:
+                  summary: The key does not exist
+                  value: { outcome: new, existing: null, differingFields: [] }
+                duplicate:
+                  summary: Same key and same data
+                  value:
+                    outcome: duplicate
+                    existing: { provider: uber eats, orderId: UE-098001, incidentDate: '2026-11-10', incidentTime: '19:40', branch: centro, claimAmount: '12.50', providerCosts: null, total: null, description: null }
+                    differingFields: []
+                conflict:
+                  summary: Same key with different data
+                  value:
+                    outcome: conflict
+                    existing: { provider: uber eats, orderId: UE-098001, incidentDate: '2026-11-10', incidentTime: '19:40', branch: centro, claimAmount: '12.50', providerCosts: null, total: null, description: null }
+                    differingFields: [claimAmount]
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/incidents/manual:
+    post:
+      operationId: createManualIncident
+      tags: [incidents]
+      summary: Save a manual entry after the administrator reviewed and confirmed it
+      description: |
+        Creates no email. Whether a manual Uber Eats or Just Eat entry generates an email is
+        pending decision P-12, so the contract has no such option.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentCore'
+            examples:
+              reviewed:
+                summary: The reviewed entry
+                value: { provider: uber eats, orderId: UE-200001, incidentDate: '2026-11-21', incidentTime: null, branch: centro, claimAmount: '18.75', providerCosts: null, total: null, description: null }
+      responses:
+        '201':
+          description: The incident was saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+              examples:
+                created:
+                  summary: Saved without email
+                  value: { id: inc-100, batchId: null, provider: uber eats, orderId: UE-200001, incidentDate: '2026-11-21', incidentTime: null, branch: centro, claimAmount: '18.75', providerCosts: null, total: null, description: null, status: imported_no_email, channel: email, claimDate: null, recoveryDate: null, recoveredAmount: null, result: null }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: The key already exists; nothing was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                duplicate:
+                  summary: Provider and order ID already exist
+                  value:
+                    code: incident_exists
+                    message: Ya existe una incidencia con ese proveedor y ese Order ID.
+  /api/incidents/{incidentId}:
+    parameters:
+      - $ref: '#/components/parameters/IncidentId'
+    get:
+      operationId: getIncident
+      tags: [incidents]
+      summary: Detail and history of an incident
+      responses:
+        '200':
+          description: The incident with its append-only history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentDetail'
+              examples:
+                claimedByEmail:
+                  summary: Claimed by email
+                  value:
+                    incident: { id: inc-001, batchId: lote-0005, provider: uber eats, orderId: UE-098001, incidentDate: '2026-11-10', incidentTime: '19:40', branch: centro, claimAmount: '12.50', providerCosts: null, total: null, description: null, status: claimed, channel: email, claimDate: '2026-11-20', recoveryDate: null, recoveredAmount: null, result: null }
+                    history:
+                      - { at: '2026-11-20T11:55:00Z', actor: system, kind: imported, field: status, previousValue: null, newValue: pending_send, reason: null }
+                      - { at: '2026-11-20T12:10:00Z', actor: system, kind: email_result, field: status, previousValue: pending_send, newValue: claimed, reason: null }
+                sendError:
+                  summary: Email ended in error, with no retry
+                  value:
+                    incident: { id: inc-002, batchId: lote-0005, provider: just eat, orderId: JE-44100, incidentDate: '2026-11-11', incidentTime: null, branch: null, claimAmount: null, providerCosts: null, total: null, description: null, status: send_error, channel: email, claimDate: null, recoveryDate: null, recoveredAmount: null, result: null }
+                    history:
+                      - { at: '2026-11-20T11:55:00Z', actor: system, kind: imported, field: status, previousValue: null, newValue: pending_send, reason: null }
+                      - { at: '2026-11-20T12:11:00Z', actor: system, kind: email_result, field: status, previousValue: pending_send, newValue: send_error, reason: El servidor de correo rechazó la conexión. }
+                partialRecovery:
+                  summary: Resolved with a partial recovered amount
+                  value:
+                    incident: { id: inc-004, batchId: lote-0004, provider: uber eats, orderId: UE-097500, incidentDate: '2026-10-30', incidentTime: null, branch: centro, claimAmount: '20.00', providerCosts: null, total: null, description: null, status: resolved, channel: email, claimDate: '2026-11-02', recoveryDate: '2026-11-15', recoveredAmount: '12.00', result: resolved }
+                    history:
+                      - { at: '2026-11-02T10:00:00Z', actor: system, kind: email_result, field: status, previousValue: pending_send, newValue: claimed, reason: null }
+                      - { at: '2026-11-15T16:30:00Z', actor: admin-1, kind: result, field: status, previousValue: claimed, newValue: resolved, reason: null }
+                corrected:
+                  summary: A result corrected afterwards, with its history
+                  value:
+                    incident: { id: inc-005, batchId: lote-0004, provider: glovo, orderId: GL-76000, incidentDate: '2026-10-28', incidentTime: null, branch: norte, claimAmount: '10.00', providerCosts: null, total: null, description: null, status: resolved, channel: glovo, claimDate: '2026-10-30', recoveryDate: '2026-11-12', recoveredAmount: '8.00', result: resolved }
+                    history:
+                      - { at: '2026-10-30T09:00:00Z', actor: admin-1, kind: claim, field: status, previousValue: imported_no_email, newValue: claimed, reason: null }
+                      - { at: '2026-11-12T15:00:00Z', actor: admin-1, kind: result, field: status, previousValue: claimed, newValue: resolved, reason: null }
+                      - { at: '2026-11-14T10:20:00Z', actor: admin-1, kind: correction, field: recoveredAmount, previousValue: '10.00', newValue: '8.00', reason: "El importe recuperado era 8,00 y no 10,00." }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/incidents/{incidentId}/claim:
+    parameters:
+      - $ref: '#/components/parameters/IncidentId'
+    post:
+      operationId: claimGlovoIncident
+      tags: [incidents]
+      summary: Mark an incident without email as claimed through an external channel
+      description: |
+        Applies to an incident in `imported_no_email` (Glovo, or a manual entry). The channel used to
+        claim is pending decision P-11 and is not recorded.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaimRequest'
+            examples:
+              claimed:
+                summary: Claim date
+                value:
+                  claimDate: '2026-11-21'
+      responses:
+        '200':
+          description: The incident is now claimed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+              examples:
+                claimed:
+                  summary: Glovo incident claimed
+                  value: { id: inc-003, batchId: lote-0005, provider: glovo, orderId: GL-77001, incidentDate: '2026-11-12', incidentTime: null, branch: norte, claimAmount: '30.00', providerCosts: '2.00', total: '32.00', description: Pedido cancelado, status: claimed, channel: glovo, claimDate: '2026-11-21', recoveryDate: null, recoveredAmount: null, result: null }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The incident cannot be claimed manually.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                notAvailable:
+                  summary: It has an email or was already claimed
+                  value:
+                    code: claim_not_available
+                    message: Esta incidencia no se puede reclamar de forma manual porque tiene un correo asociado o ya está reclamada.
+  /api/incidents/{incidentId}/result:
+    parameters:
+      - $ref: '#/components/parameters/IncidentId'
+    post:
+      operationId: recordIncidentResult
+      tags: [incidents]
+      summary: Record the result and the explicit recovered amount, partial or full
+      description: Resolved does not imply the whole claimed amount was recovered.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResultRequest'
+            examples:
+              partial:
+                summary: Partial recovery
+                value:
+                  result: resolved
+                  recoveredAmount: '12.00'
+                  recoveryDate: '2026-11-15'
+      responses:
+        '200':
+          description: The incident with its recorded result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+              examples:
+                partial:
+                  summary: Resolved with a partial amount
+                  value: { id: inc-004, batchId: lote-0004, provider: uber eats, orderId: UE-097500, incidentDate: '2026-10-30', incidentTime: null, branch: centro, claimAmount: '20.00', providerCosts: null, total: null, description: null, status: resolved, channel: email, claimDate: '2026-11-02', recoveryDate: '2026-11-15', recoveredAmount: '12.00', result: resolved }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A result can only be recorded for a claimed incident.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                notClaimed:
+                  summary: The incident is not claimed
+                  value:
+                    code: incident_not_claimed
+                    message: Solo se puede registrar el resultado de una incidencia reclamada. Para cambiar uno ya registrado use una corrección.
+  /api/incidents/{incidentId}/corrections:
+    parameters:
+      - $ref: '#/components/parameters/IncidentId'
+    post:
+      operationId: correctIncidentResult
+      tags: [incidents]
+      summary: Correct a recorded result, keeping the history
+      description: Does not undo the import and does not affect any email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CorrectionRequest'
+            examples:
+              correction:
+                summary: Correct the recovered amount
+                value:
+                  result: resolved
+                  recoveredAmount: '8.00'
+                  recoveryDate: '2026-11-12'
+                  reason: El importe recuperado era 8,00 y no 10,00.
+      responses:
+        '200':
+          description: The incident with the correction in its history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentDetail'
+              examples:
+                corrected:
+                  summary: Correction recorded
+                  value:
+                    incident: { id: inc-005, batchId: lote-0004, provider: glovo, orderId: GL-76000, incidentDate: '2026-10-28', incidentTime: null, branch: norte, claimAmount: '10.00', providerCosts: null, total: null, description: null, status: resolved, channel: glovo, claimDate: '2026-10-30', recoveryDate: '2026-11-12', recoveredAmount: '8.00', result: resolved }
+                    history:
+                      - { at: '2026-11-14T10:20:00Z', actor: admin-1, kind: correction, field: recoveredAmount, previousValue: '10.00', newValue: '8.00', reason: "El importe recuperado era 8,00 y no 10,00." }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Only a recorded result can be corrected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                noResult:
+                  summary: The incident has no recorded result
+                  value:
+                    code: no_result_to_correct
+                    message: Esta incidencia todavía no tiene un resultado registrado que corregir.
+  /api/metrics:
+    get:
+      operationId: getMetrics
+      tags: [metrics]
+      summary: Dashboard figures, always stating the date used
+      description: Criteria and formulas stay examples while P-04 is pending. An absent amount is never counted as zero.
+      parameters:
+        - $ref: '#/components/parameters/DateKind'
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/FilterProvider'
+        - $ref: '#/components/parameters/FilterBranch'
+      responses:
+        '200':
+          description: The figures for the environment and the chosen date.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metrics'
+              examples:
+                testWithIncompleteData:
+                  summary: Test environment with an incomplete total
+                  value:
+                    environment: test
+                    dateKind: claim
+                    criteria: { status: example, pendingDecision: P-04 }
+                    channels:
+                      - { channel: email, claimedCount: 5, claimedAmount: '62.50', recoveredCount: 1, recoveredAmount: '12.00', incompleteCount: 1, recoveryRate: '0.1920' }
+                      - { channel: glovo, claimedCount: 2, claimedAmount: '40.00', recoveredCount: 1, recoveredAmount: '8.00', incompleteCount: 0, recoveryRate: '0.2000' }
+                    breakdown:
+                      - { provider: uber eats, branch: centro, claimedCount: 3, claimedAmount: '40.00', recoveredCount: 1, recoveredAmount: '12.00', incompleteCount: 0 }
+                      - { provider: just eat, branch: null, claimedCount: 2, claimedAmount: null, recoveredCount: 0, recoveredAmount: null, incompleteCount: 1 }
+                    pendingClaims:
+                      - { incidentId: inc-001, provider: uber eats, claimDate: '2026-11-20', ageDays: 2 }
+                    warnings:
+                      - { code: incomplete_amounts, message: 'Hay 1 incidencia sin importe a reclamar: el total está incompleto.', count: 1 }
+                empty:
+                  summary: No data for the chosen range
+                  value:
+                    environment: test
+                    dateKind: incident
+                    criteria: { status: example, pendingDecision: P-04 }
+                    channels: []
+                    breakdown: []
+                    pendingClaims: []
+                    warnings:
+                      - { code: no_data, message: No hay datos para el periodo seleccionado., count: 0 }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/branches:
+    get:
+      operationId: listBranchOptions
+      tags: [incidents]
+      summary: Branch names, to filter incidents
+      description: Read-only list for any role that reads incidents. The technical team maintains the branches; the interface has no screen for it.
+      responses:
+        '200':
+          description: The branches.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchList'
+              examples:
+                default:
+                  summary: Initial catalogue
+                  value:
+                    items:
+                      - { id: br-1, name: centro, active: true }
+                      - { id: br-2, name: norte, active: true }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/email-queue:
+    get:
+      operationId: getEmailQueue
+      tags: [email-queue]
+      summary: Email states, reasons, totals and the global pause
+      description: Each email has one attempt; at least 30 seconds separate the start of consecutive attempts.
+      parameters:
+        - $ref: '#/components/parameters/QueueState'
+        - $ref: '#/components/parameters/QueueBatchId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: The queue.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueView'
+              examples:
+                running:
+                  summary: Emails in every state, one failed and one unverifiable
+                  value:
+                    status: { paused: false, pausedAt: null, inFlight: 1 }
+                    minIntervalSeconds: 30
+                    attemptsPerEmail: 1
+                    nextEligibleAt: '2026-11-22T12:00:30Z'
+                    totals: { pending: 1, sending: 1, sent: 1, error: 2 }
+                    batches:
+                      - { batchId: lote-0005, completed: false, totals: { pending: 1, sending: 1, sent: 1, error: 2 } }
+                    page: 1
+                    pageSize: 50
+                    total: 5
+                    items:
+                      - { id: em-1, incidentId: inc-001, batchId: lote-0005, orderId: UE-098001, provider: uber eats, state: sent, reason: null, errorKind: null, startedAt: '2026-11-22T11:59:00Z', finishedAt: '2026-11-22T11:59:02Z', recipient: { kind: test, label: Destinatario de prueba } }
+                      - { id: em-2, incidentId: inc-002, batchId: lote-0005, orderId: JE-44100, provider: just eat, state: error, reason: El servidor de correo rechazó la conexión., errorKind: send_failed, startedAt: '2026-11-22T11:59:32Z', finishedAt: '2026-11-22T11:59:33Z', recipient: { kind: test, label: Destinatario de prueba } }
+                      - { id: em-3, incidentId: inc-006, batchId: lote-0005, orderId: UE-098002, provider: uber eats, state: error, reason: El envío se interrumpió y no se pudo verificar el resultado., errorKind: interrupted_unverified, startedAt: '2026-11-22T11:58:00Z', finishedAt: '2026-11-22T11:58:40Z', recipient: { kind: test, label: Destinatario de prueba } }
+                      - { id: em-4, incidentId: inc-007, batchId: lote-0005, orderId: UE-098003, provider: uber eats, state: sending, reason: null, errorKind: null, startedAt: '2026-11-22T12:00:00Z', finishedAt: null, recipient: { kind: test, label: Destinatario de prueba } }
+                      - { id: em-5, incidentId: inc-008, batchId: lote-0005, orderId: JE-44101, provider: just eat, state: pending, reason: null, errorKind: null, startedAt: null, finishedAt: null, recipient: { kind: test, label: Destinatario de prueba } }
+                paused:
+                  summary: Queue paused while one attempt is still finishing
+                  value:
+                    status: { paused: true, pausedAt: '2026-11-22T12:01:00Z', inFlight: 1 }
+                    minIntervalSeconds: 30
+                    attemptsPerEmail: 1
+                    nextEligibleAt: null
+                    totals: { pending: 3, sending: 1, sent: 0, error: 0 }
+                    batches:
+                      - { batchId: lote-0007, completed: false, totals: { pending: 3, sending: 1, sent: 0, error: 0 } }
+                    page: 1
+                    pageSize: 50
+                    total: 4
+                    items:
+                      - { id: em-10, incidentId: inc-020, batchId: lote-0007, orderId: UE-100234, provider: uber eats, state: sending, reason: null, errorKind: null, startedAt: '2026-11-22T12:00:55Z', finishedAt: null, recipient: { kind: test, label: Destinatario de prueba } }
+                      - { id: em-11, incidentId: inc-021, batchId: lote-0007, orderId: JE-5521A, provider: just eat, state: pending, reason: null, errorKind: null, startedAt: null, finishedAt: null, recipient: { kind: test, label: Destinatario de prueba } }
+                      - { id: em-12, incidentId: inc-022, batchId: lote-0007, orderId: UE-100301, provider: uber eats, state: pending, reason: null, errorKind: null, startedAt: null, finishedAt: null, recipient: { kind: test, label: Destinatario de prueba } }
+                      - { id: em-13, incidentId: inc-023, batchId: lote-0007, orderId: UE-100302, provider: uber eats, state: pending, reason: null, errorKind: null, startedAt: null, finishedAt: null, recipient: { kind: test, label: Destinatario de prueba } }
+                completedWithErrors:
+                  summary: A completed batch with both Sent and Error
+                  value:
+                    status: { paused: false, pausedAt: null, inFlight: 0 }
+                    minIntervalSeconds: 30
+                    attemptsPerEmail: 1
+                    nextEligibleAt: null
+                    totals: { pending: 0, sending: 0, sent: 2, error: 1 }
+                    batches:
+                      - { batchId: lote-0005, completed: true, totals: { pending: 0, sending: 0, sent: 2, error: 1 } }
+                    page: 1
+                    pageSize: 50
+                    total: 0
+                    items: []
+                glovoOnlyBatch:
+                  summary: A batch with only Glovo incidents has no emails
+                  value:
+                    status: { paused: false, pausedAt: null, inFlight: 0 }
+                    minIntervalSeconds: 30
+                    attemptsPerEmail: 1
+                    nextEligibleAt: null
+                    totals: { pending: 0, sending: 0, sent: 0, error: 0 }
+                    batches: []
+                    page: 1
+                    pageSize: 50
+                    total: 0
+                    items: []
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/email-queue/pause:
+    post:
+      operationId: pauseEmailQueue
+      tags: [email-queue]
+      summary: Pause the queue globally and persistently
+      description: Prevents new attempts. An attempt already started may finish; nothing is cancelled.
+      responses:
+        '200':
+          description: The queue is paused.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueStatus'
+              examples:
+                pausedWithAttemptInProgress:
+                  summary: Paused while one attempt is still running
+                  value: { paused: true, pausedAt: '2026-11-22T12:01:00Z', inFlight: 1 }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/email-queue/resume:
+    post:
+      operationId: resumeEmailQueue
+      tags: [email-queue]
+      summary: Resume the queue
+      description: New attempts start again, still spaced by at least 30 seconds. Emails already in Error are not retried.
+      responses:
+        '200':
+          description: The queue is running.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueStatus'
+              examples:
+                resumed:
+                  summary: Queue running
+                  value: { paused: false, pausedAt: null, inFlight: 0 }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  # @@PATHS-END@@
+components:
+  securitySchemes:
+    easyAuthSession:
+      type: apiKey
+      in: cookie
+      name: AppServiceAuthSession
+      description: Session cookie set by Easy Auth after Google sign-in. The frontend proxy forwards the identity to the API; the API trusts no other source.
+  schemas:
+    Amount:
+      type: string
+      pattern: '^-?\d+(\.\d+)?$'
+      description: Decimal amount in EUR as a string. Keeps the source decimals; sign is kept as received.
+      examples: ['12.50', '0.1234', '-3.00']
+    OptionalAmount:
+      description: An `Amount`, or `null` when the source has no value. `null` is never zero.
+      oneOf:
+        - $ref: '#/components/schemas/Amount'
+        - type: 'null'
+    IncidentDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Incident date as `YYYY-MM-DD`.
+      examples: ['2026-10-12']
+    IncidentTime:
+      type: [string, 'null']
+      pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+      description: Optional `HH:MM` incident time in Europe/Madrid. `null` when the source has no time.
+      examples: ['20:22', null]
+    Timestamp:
+      type: string
+      format: date-time
+      description: A UTC instant. The interface presents it in Europe/Madrid time.
+    Provider:
+      type: string
+      enum: ['uber eats', 'just eat', 'glovo']
+      description: Lowercase provider. Only `uber eats` and `just eat` generate email.
+    Role:
+      type: string
+      enum: [administrator, global_manager]
+    Environment:
+      type: string
+      enum: [local, test, production]
+    BatchState:
+      type: string
+      enum: [uploaded, processing, in_review, rejected, discarded, confirmed, completed]
+      description: Lifecycle of a batch. `uploaded`, `processing` and `in_review` are unconfirmed.
+    RowClass:
+      type: string
+      enum: [new, duplicate, conflict, error]
+      description: Exclusive classification produced by the backend for each row.
+    IncidentStatus:
+      type: string
+      enum: [imported_no_email, pending_send, claimed, send_error, resolved, rejected]
+      description: |
+        Incident states. There is no transition from `send_error` back to `pending_send`.
+    EmailState:
+      type: string
+      enum: [pending, sending, sent, error]
+    IncidentCore:
+      type: object
+      description: The business fields of an incident, as in the XLSX contract.
+      required: [provider, orderId, incidentDate, incidentTime, branch, claimAmount, providerCosts, total, description]
+      properties:
+        provider:
+          $ref: '#/components/schemas/Provider'
+        orderId:
+          type: string
+          minLength: 1
+          description: Alphanumeric text kept exactly as received.
+        incidentDate:
+          $ref: '#/components/schemas/IncidentDate'
+        incidentTime:
+          $ref: '#/components/schemas/IncidentTime'
+        branch:
+          type: [string, 'null']
+          description: Lowercase branch, or `null` for an incident without branch ("Sin sucursal").
+        claimAmount:
+          $ref: '#/components/schemas/OptionalAmount'
+        providerCosts:
+          $ref: '#/components/schemas/OptionalAmount'
+        total:
+          $ref: '#/components/schemas/OptionalAmount'
+        description:
+          type: [string, 'null']
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable code, for example `not_authenticated`, `not_authorized`, `batch_discarded`.
+        message:
+          type: string
+          description: Message intended for the user, in Spanish.
+        details:
+          type: object
+          additionalProperties: true
+    Permission:
+      type: string
+      enum: [import, confirm, incidents_read, incidents_write, metrics_read, queue_control]
+      description: Actions a role allows. Hiding an action in the interface never replaces API authorization.
+    Session:
+      type: object
+      required: [identifier, email, role, environment, permissions]
+      properties:
+        identifier:
+          type: string
+          description: Stable identifier of the authenticated user.
+        email:
+          type: [string, 'null']
+        role:
+          $ref: '#/components/schemas/Role'
+        environment:
+          $ref: '#/components/schemas/Environment'
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+    Sha256:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+      description: SHA-256 of the uploaded file. The confirmation is bound to this reviewed version.
+    UploadGrant:
+      type: object
+      description: Temporary create-only permission to upload one file directly to storage.
+      required: [url, method, headers, expiresAt]
+      properties:
+        url:
+          type: string
+        method:
+          type: string
+          enum: [PUT]
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+    ClassTotals:
+      type: object
+      required: [new, duplicate, conflict, error]
+      properties:
+        new:
+          type: integer
+          minimum: 0
+        duplicate:
+          type: integer
+          minimum: 0
+        conflict:
+          type: integer
+          minimum: 0
+        error:
+          type: integer
+          minimum: 0
+    BatchSummary:
+      type: object
+      description: Counts of a prepared batch. Nothing here is definitive until the batch is confirmed.
+      required: [totals, incidentsToCreate, emailsToGenerate, withoutEmail]
+      properties:
+        totals:
+          $ref: '#/components/schemas/ClassTotals'
+        incidentsToCreate:
+          type: integer
+          minimum: 0
+        emailsToGenerate:
+          type: integer
+          minimum: 0
+        withoutEmail:
+          type: integer
+          minimum: 0
+          description: Valid new incidents that generate no email (Glovo).
+    Rejection:
+      type: object
+      description: Structure rejection of the whole file (RF-02).
+      required: [reason, detail]
+      properties:
+        reason:
+          type: string
+          enum: [missing_required_header, multiple_worksheets, corrupt_or_protected_file]
+        detail:
+          type: [string, 'null']
+          description: For example the name of the missing header.
+    IdenticalFileNotice:
+      type: object
+      description: The file matches a previously confirmed one. It never replaces row-level deduplication.
+      required: [confirmedBatchId, confirmedAt]
+      properties:
+        confirmedBatchId:
+          type: string
+        confirmedAt:
+          $ref: '#/components/schemas/Timestamp'
+    Batch:
+      type: object
+      required: [id, state, fileName, createdAt, reviewedVersion, rejection, identicalFile, summary]
+      properties:
+        id:
+          type: string
+        state:
+          $ref: '#/components/schemas/BatchState'
+        fileName:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        reviewedVersion:
+          oneOf:
+            - $ref: '#/components/schemas/Sha256'
+            - type: 'null'
+        rejection:
+          oneOf:
+            - $ref: '#/components/schemas/Rejection'
+            - type: 'null'
+        identicalFile:
+          oneOf:
+            - $ref: '#/components/schemas/IdenticalFileNotice'
+            - type: 'null'
+        summary:
+          oneOf:
+            - $ref: '#/components/schemas/BatchSummary'
+            - type: 'null'
+    CreateBatchRequest:
+      type: object
+      required: [fileName, sizeBytes]
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+        sizeBytes:
+          type: integer
+          minimum: 0
+    BatchUpload:
+      type: object
+      required: [batch, upload]
+      properties:
+        batch:
+          $ref: '#/components/schemas/Batch'
+        upload:
+          $ref: '#/components/schemas/UploadGrant'
+    RowFields:
+      type: object
+      description: |
+        The values of a row as read from the file, kept as text so nothing is rounded or repaired.
+        Provider and branch are already lowercase. An absent value is `null`.
+      required: [provider, orderId, incidentDate, incidentTime, branch, claimAmount, providerCosts, total, description]
+      properties:
+        provider:
+          type: [string, 'null']
+        orderId:
+          type: [string, 'null']
+        incidentDate:
+          type: [string, 'null']
+        incidentTime:
+          type: [string, 'null']
+        branch:
+          type: [string, 'null']
+        claimAmount:
+          type: [string, 'null']
+        providerCosts:
+          type: [string, 'null']
+        total:
+          type: [string, 'null']
+        description:
+          type: [string, 'null']
+    Comparison:
+      type: object
+      description: The existing incident compared with the file row, for a conflict.
+      required: [existing, differingFields]
+      properties:
+        existing:
+          $ref: '#/components/schemas/IncidentCore'
+        differingFields:
+          type: array
+          items:
+            type: string
+    Row:
+      type: object
+      required: [rowNumber, class, reason, fields, comparison, repeatedInFile]
+      properties:
+        rowNumber:
+          type: integer
+          minimum: 1
+        class:
+          $ref: '#/components/schemas/RowClass'
+        reason:
+          type: [string, 'null']
+          description: Reason shown to the user for every excluded row; `null` for a new row.
+        fields:
+          $ref: '#/components/schemas/RowFields'
+        comparison:
+          oneOf:
+            - $ref: '#/components/schemas/Comparison'
+            - type: 'null'
+        repeatedInFile:
+          type: array
+          description: Row numbers of the other occurrences of the same key inside the file.
+          items:
+            type: integer
+    RowPage:
+      type: object
+      description: |
+        One page of rows. `total` counts the rows that match the filter and `totalsByClass` counts the
+        whole batch, so the totals are always present and no truncation is silent (RNF-01).
+      required: [items, page, pageSize, total, totalsByClass]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Row'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        totalsByClass:
+          $ref: '#/components/schemas/ClassTotals'
+    EmailTemplate:
+      type: object
+      required: [subject, body, isFinal, pendingDecision]
+      properties:
+        subject:
+          type: string
+        body:
+          type: string
+        isFinal:
+          type: boolean
+          description: False while P-03 is pending; the text is then only an example.
+        pendingDecision:
+          type: [string, 'null']
+    Recipient:
+      type: object
+      required: [kind, label]
+      properties:
+        kind:
+          type: string
+          enum: [test]
+          description: Only the test recipient is allowed until real recipients are defined (P-01).
+        label:
+          type: string
+    ConfirmationSummary:
+      type: object
+      required: [batchId, reviewedVersion, incidentsToCreate, emailsToGenerate, withoutEmail, excluded, recipient, template]
+      properties:
+        batchId:
+          type: string
+        reviewedVersion:
+          $ref: '#/components/schemas/Sha256'
+        incidentsToCreate:
+          type: integer
+          minimum: 0
+        emailsToGenerate:
+          type: integer
+          minimum: 0
+        withoutEmail:
+          type: integer
+          minimum: 0
+        excluded:
+          type: integer
+          minimum: 0
+        recipient:
+          $ref: '#/components/schemas/Recipient'
+        template:
+          $ref: '#/components/schemas/EmailTemplate'
+    ConfirmRequest:
+      type: object
+      required: [reviewedVersion]
+      properties:
+        reviewedVersion:
+          $ref: '#/components/schemas/Sha256'
+    ExcludedRow:
+      type: object
+      required: [rowNumber, class, reason]
+      properties:
+        rowNumber:
+          type: integer
+          minimum: 1
+        class:
+          $ref: '#/components/schemas/RowClass'
+        reason:
+          type: string
+    ConfirmationResult:
+      type: object
+      description: The stored result of a confirmation. Repeating a confirmation returns the same result.
+      required: [batchId, confirmedAt, createdIncidents, pendingEmails, withoutEmail, excluded, excludedAtConfirmation, alreadyConfirmed]
+      properties:
+        batchId:
+          type: string
+        confirmedAt:
+          $ref: '#/components/schemas/Timestamp'
+        createdIncidents:
+          type: integer
+          minimum: 0
+        pendingEmails:
+          type: integer
+          minimum: 0
+        withoutEmail:
+          type: integer
+          minimum: 0
+        excluded:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExcludedRow'
+        excludedAtConfirmation:
+          type: array
+          description: Rows that became duplicates between review and confirmation (RF-10).
+          items:
+            $ref: '#/components/schemas/ExcludedRow'
+        alreadyConfirmed:
+          type: boolean
+          description: True when this response repeats a confirmation already stored.
+    DiscardResult:
+      type: object
+      required: [discarded, batchIds]
+      properties:
+        discarded:
+          type: integer
+          minimum: 0
+        batchIds:
+          type: array
+          items:
+            type: string
+    OptionalDate:
+      type: [string, 'null']
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: A calendar date as `YYYY-MM-DD`, or `null` when it has not happened. Used for claim and recovery dates.
+    Channel:
+      type: string
+      enum: [email, glovo]
+      description: Claims by email and manual Glovo claims are always kept apart.
+    ResultKind:
+      type: string
+      enum: [resolved, rejected]
+    Incident:
+      type: object
+      description: A confirmed incident. The incident, claim and recovery dates are three distinct values.
+      required: [id, batchId, provider, orderId, incidentDate, incidentTime, branch, claimAmount, providerCosts, total, description, status, channel, claimDate, recoveryDate, recoveredAmount, result]
+      properties:
+        id:
+          type: string
+        batchId:
+          type: [string, 'null']
+          description: The batch that created the incident, or `null` for a manual entry.
+        provider:
+          $ref: '#/components/schemas/Provider'
+        orderId:
+          type: string
+          minLength: 1
+        incidentDate:
+          $ref: '#/components/schemas/IncidentDate'
+        incidentTime:
+          $ref: '#/components/schemas/IncidentTime'
+        branch:
+          type: [string, 'null']
+        claimAmount:
+          $ref: '#/components/schemas/OptionalAmount'
+        providerCosts:
+          $ref: '#/components/schemas/OptionalAmount'
+        total:
+          $ref: '#/components/schemas/OptionalAmount'
+        description:
+          type: [string, 'null']
+        status:
+          $ref: '#/components/schemas/IncidentStatus'
+        channel:
+          $ref: '#/components/schemas/Channel'
+        claimDate:
+          $ref: '#/components/schemas/OptionalDate'
+        recoveryDate:
+          $ref: '#/components/schemas/OptionalDate'
+        recoveredAmount:
+          $ref: '#/components/schemas/OptionalAmount'
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/ResultKind'
+            - type: 'null'
+    IncidentPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Incident'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+    HistoryEntry:
+      type: object
+      description: Append-only history of an incident. Corrections do not revert the batch or any email.
+      required: [at, actor, kind, field, previousValue, newValue, reason]
+      properties:
+        at:
+          $ref: '#/components/schemas/Timestamp'
+        actor:
+          type: string
+          description: A user, or `system`.
+        kind:
+          type: string
+          enum: [imported, email_result, claim, result, correction]
+        field:
+          type: string
+          enum: [status, claimDate, result, recoveredAmount, recoveryDate]
+          description: The value that changed. `previousValue` and `newValue` refer to it.
+        previousValue:
+          type: [string, 'null']
+        newValue:
+          type: [string, 'null']
+        reason:
+          type: [string, 'null']
+    IncidentDetail:
+      type: object
+      required: [incident, history]
+      properties:
+        incident:
+          $ref: '#/components/schemas/Incident'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryEntry'
+    ManualCheckResult:
+      type: object
+      description: Outcome of checking a manual entry by provider and order ID before it is reviewed.
+      required: [outcome, existing, differingFields]
+      properties:
+        outcome:
+          type: string
+          enum: [new, duplicate, conflict]
+        existing:
+          oneOf:
+            - $ref: '#/components/schemas/IncidentCore'
+            - type: 'null'
+        differingFields:
+          type: array
+          items:
+            type: string
+    ClaimRequest:
+      type: object
+      description: Manual claim of a Glovo incident made outside the application. The channel is pending P-11.
+      required: [claimDate]
+      properties:
+        claimDate:
+          $ref: '#/components/schemas/IncidentDate'
+    ResultRequest:
+      type: object
+      required: [result, recoveredAmount, recoveryDate]
+      properties:
+        result:
+          $ref: '#/components/schemas/ResultKind'
+        recoveredAmount:
+          $ref: '#/components/schemas/OptionalAmount'
+        recoveryDate:
+          $ref: '#/components/schemas/OptionalDate'
+    CorrectionRequest:
+      type: object
+      required: [result, recoveredAmount, recoveryDate, reason]
+      properties:
+        result:
+          $ref: '#/components/schemas/ResultKind'
+        recoveredAmount:
+          $ref: '#/components/schemas/OptionalAmount'
+        recoveryDate:
+          $ref: '#/components/schemas/OptionalDate'
+        reason:
+          type: string
+          minLength: 1
+    ChannelMetrics:
+      type: object
+      required: [channel, claimedCount, claimedAmount, recoveredCount, recoveredAmount, incompleteCount, recoveryRate]
+      properties:
+        channel:
+          $ref: '#/components/schemas/Channel'
+        claimedCount:
+          type: integer
+          minimum: 0
+        claimedAmount:
+          $ref: '#/components/schemas/OptionalAmount'
+        recoveredCount:
+          type: integer
+          minimum: 0
+        recoveredAmount:
+          $ref: '#/components/schemas/OptionalAmount'
+        incompleteCount:
+          type: integer
+          minimum: 0
+          description: Incidents in the figure that have no claim amount, so the sum is incomplete.
+        recoveryRate:
+          type: [string, 'null']
+          pattern: '^\d+(\.\d+)?$'
+          description: Recovered over claimed. Only an example while P-04 is pending; `null` when it cannot be computed.
+    BreakdownRow:
+      type: object
+      required: [provider, branch, claimedCount, claimedAmount, recoveredCount, recoveredAmount, incompleteCount]
+      properties:
+        provider:
+          $ref: '#/components/schemas/Provider'
+        branch:
+          type: [string, 'null']
+          description: "`null` is shown as \"Sin sucursal\"."
+        claimedCount:
+          type: integer
+          minimum: 0
+        claimedAmount:
+          $ref: '#/components/schemas/OptionalAmount'
+        recoveredCount:
+          type: integer
+          minimum: 0
+        recoveredAmount:
+          $ref: '#/components/schemas/OptionalAmount'
+        incompleteCount:
+          type: integer
+          minimum: 0
+    PendingClaim:
+      type: object
+      required: [incidentId, provider, claimDate, ageDays]
+      properties:
+        incidentId:
+          type: string
+        provider:
+          $ref: '#/components/schemas/Provider'
+        claimDate:
+          $ref: '#/components/schemas/IncidentDate'
+        ageDays:
+          type: integer
+          minimum: 0
+          description: Days since the claim. The age criterion is only an example while P-04 is pending.
+    MetricsWarning:
+      type: object
+      required: [code, message, count]
+      properties:
+        code:
+          type: string
+          enum: [incomplete_amounts, no_data]
+        message:
+          type: string
+        count:
+          type: integer
+          minimum: 0
+    CriteriaStatus:
+      type: object
+      required: [status, pendingDecision]
+      properties:
+        status:
+          type: string
+          enum: [example, approved]
+        pendingDecision:
+          type: [string, 'null']
+    Metrics:
+      type: object
+      required: [environment, dateKind, criteria, channels, breakdown, pendingClaims, warnings]
+      properties:
+        environment:
+          $ref: '#/components/schemas/Environment'
+        dateKind:
+          type: string
+          enum: [incident, claim, recovery]
+          description: The date every figure and filter uses. It is always stated to the user.
+        criteria:
+          $ref: '#/components/schemas/CriteriaStatus'
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChannelMetrics'
+        breakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/BreakdownRow'
+        pendingClaims:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingClaim'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricsWarning'
+    Branch:
+      type: object
+      required: [id, name, active]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: Lowercase branch name, as it must appear in the XLSX.
+        active:
+          type: boolean
+    BranchList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Branch'
+    QueueStatus:
+      type: object
+      required: [paused, pausedAt, inFlight]
+      properties:
+        paused:
+          type: boolean
+          description: Persistent. Pausing prevents new attempts; an attempt already started may finish.
+        pausedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        inFlight:
+          type: integer
+          minimum: 0
+          description: Attempts started and not finished.
+    EmailTotals:
+      type: object
+      required: [pending, sending, sent, error]
+      properties:
+        pending:
+          type: integer
+          minimum: 0
+        sending:
+          type: integer
+          minimum: 0
+        sent:
+          type: integer
+          minimum: 0
+        error:
+          type: integer
+          minimum: 0
+    QueueEntry:
+      type: object
+      description: One email. It has a single attempt; there is no retry, resend or cancel.
+      required: [id, incidentId, batchId, orderId, provider, state, reason, errorKind, startedAt, finishedAt, recipient]
+      properties:
+        id:
+          type: string
+        incidentId:
+          type: string
+        batchId:
+          type: string
+        orderId:
+          type: string
+        provider:
+          $ref: '#/components/schemas/Provider'
+        state:
+          $ref: '#/components/schemas/EmailState'
+        reason:
+          type: [string, 'null']
+          description: Reason for an `error` state, shown to the user.
+        errorKind:
+          type: [string, 'null']
+          enum: [send_failed, interrupted_unverified, null]
+          description: |
+            `interrupted_unverified` means the result could not be verified; it does not prove the
+            email was not received.
+        startedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        finishedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        recipient:
+          $ref: '#/components/schemas/Recipient'
+    BatchEmailProgress:
+      type: object
+      description: A batch is completed when every email is `sent` or `error`. Completed does not mean all succeeded.
+      required: [batchId, completed, totals]
+      properties:
+        batchId:
+          type: string
+        completed:
+          type: boolean
+        totals:
+          $ref: '#/components/schemas/EmailTotals'
+    QueueView:
+      type: object
+      required: [status, minIntervalSeconds, attemptsPerEmail, nextEligibleAt, totals, batches, items, page, pageSize, total]
+      properties:
+        status:
+          $ref: '#/components/schemas/QueueStatus'
+        minIntervalSeconds:
+          type: integer
+          enum: [30]
+          description: Minimum seconds between the start of consecutive attempts.
+        attemptsPerEmail:
+          type: integer
+          enum: [1]
+        nextEligibleAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        totals:
+          $ref: '#/components/schemas/EmailTotals'
+        batches:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchEmailProgress'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueueEntry'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+    # @@SCHEMAS-END@@
+  parameters:
+    BatchId:
+      name: batchId
+      in: path
+      required: true
+      schema:
+        type: string
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    IncidentId:
+      name: incidentId
+      in: path
+      required: true
+      schema:
+        type: string
+    FilterProvider:
+      name: provider
+      in: query
+      schema:
+        $ref: '#/components/schemas/Provider'
+    FilterBranch:
+      name: branch
+      in: query
+      description: A lowercase branch, or `none` for incidents without branch.
+      schema:
+        type: string
+    FilterStatus:
+      name: status
+      in: query
+      schema:
+        $ref: '#/components/schemas/IncidentStatus'
+    DateKind:
+      name: dateKind
+      in: query
+      description: Which date the range applies to.
+      schema:
+        type: string
+        enum: [incident, claim, recovery]
+        default: incident
+    DateFrom:
+      name: from
+      in: query
+      schema:
+        $ref: '#/components/schemas/IncidentDate'
+    DateTo:
+      name: to
+      in: query
+      schema:
+        $ref: '#/components/schemas/IncidentDate'
+    QueueState:
+      name: state
+      in: query
+      schema:
+        $ref: '#/components/schemas/EmailState'
+    QueueBatchId:
+      name: batchId
+      in: query
+      schema:
+        type: string
+    # @@PARAMETERS-END@@
+  responses:
+    Unauthenticated:
+      description: No valid session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            noSession:
+              summary: No valid session
+              value:
+                code: not_authenticated
+                message: Sesión no válida. Recargue la página para iniciar sesión.
+    Forbidden:
+      description: Authenticated but not authorized for this operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            notAuthorized:
+              summary: User outside the allowlist or without permission
+              value:
+                code: not_authorized
+                message: "Acceso denegado: su usuario no tiene permiso para esta operación."
+    NotFound:
+      description: The object does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            notFound:
+              summary: Unknown identifier
+              value:
+                code: not_found
+                message: No se encontró el elemento solicitado.
+    # @@RESPONSES-END@@
+  # @@COMPONENTS-END@@

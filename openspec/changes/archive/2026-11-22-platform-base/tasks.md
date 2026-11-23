@@ -89,7 +89,7 @@ Tasks marked **[blocked: P-xx]** need that pending decision supplied by the admi
 ## 12. Final integration check
 
 - [x] 12.1 Run the full local stack and the test environment end to end. Verify CI is green, the images build, the technical flow works locally and in Azure, and no secret appears in the repository, logs or database.
-- [ ] 12.2 Confirm the delivery states the skeleton is not business functionality, and list the open P-05 and P-07 items for the next change. Verify the listing exists in the PR description.
+- [x] 12.2 Confirm the delivery states the skeleton is not business functionality, and list the open P-05 and P-07 items for the next change. Verify the listing exists in the PR description.
 
 ## Workflow follow-up
 

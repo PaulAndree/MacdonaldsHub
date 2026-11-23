@@ -56,10 +56,23 @@ jobs:
           cache: npm
           cache-dependency-path: src/frontend/package-lock.json
       - run: npm ci
+      - name: Contract is valid, up to date and matches its recorded approval
+        run: |
+          npm run contract:lint
+          npm run contract:check
+          npm run approval:check
+      - run: npm run check:contrast
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      - name: Standard build contains no example marker
+        run: |
+          npm run build
+          npm run check:bundle:standard
+      - name: Example build contains the example layer
+        run: |
+          npm run build:example
+          npm run check:bundle:example
 
   infra:
     runs-on: ubuntu-latest
@@ -89,6 +102,8 @@ jobs:
         run: |
           docker build -t delivery-hub-backend:ci src/backend
           docker build -t dh-frontend:dev src/frontend
+          # The example variant must also build; the Dockerfile fails if its bundle is not the variant asked for.
+          docker build --build-arg EXAMPLE_MODE=true -t dh-frontend:example src/frontend
       - name: Proxy header tests
         run: src/frontend/proxy-test/run.sh dh-frontend:dev
       - name: Compose smoke test (no Azure access)

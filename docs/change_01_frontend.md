@@ -22,8 +22,6 @@ El cambio no se considera cerrado solo porque haya pantallas construidas. Requie
 | Resultados | Marcar reclamación manual Glovo, recuperación parcial, rechazo y corrección auditada | RF-21 |
 | Panel | Correo y Glovo diferenciados, fechas diferenciadas, recuperado explícito, pendientes y antigüedad | RF-15 |
 | Alta manual | Formulario, aviso de duplicado/conflicto, revisión y confirmación antes de guardar | RF-22 |
-| Administración | Autorizaciones/roles, sucursales y proveedores; destinatarios aún no disponibles claramente indicados | RF-18 |
-| Auditoría | Consulta de actor, fecha y operación; enlace a original confirmado | RF-19 |
 | Correo | Pendientes, Enviando, Enviado y Error; pausa/reanudación, motivos y totales | RF-11, RF-12, RF-13, RF-14 |
 
 ## 3. Reglas de interacción
@@ -57,9 +55,7 @@ El contrato es un **archivo OpenAPI versionado en `docs/api/openapi.yaml`**. Los
 | Consultar incidencias y exportar | Filtros, datos, estados, fechas, importes opcionales e historial |
 | Alta manual y resultados | Datos, duplicado/conflicto, resumen de confirmación, importe recuperado y correcciones |
 | Consultar métricas | Cifras por canal/proveedor/sucursal y criterios de fecha explícitos; datos incompletos |
-| Administrar | Autorizaciones, roles, sucursales y proveedores |
 | Consultar cola y controlar pausa | Estados, motivo de error, intervalo y pausa global; sin reintento |
-| Consultar auditoría | Actor, fecha, objeto, resultado y original confirmado |
 
 El contrato distingue fecha de incidencia de marcas temporales del sistema y valores ausentes de cero. No se fijan fórmulas ni detalles abiertos como si estuvieran aprobados.
 
@@ -82,6 +78,6 @@ El contrato distingue fecha de incidencia de marcas temporales del sistema y val
 
 ## 6. Fuera de alcance y entrega
 
-Fuera de alcance: parser XLSX real, deduplicación real, migraciones de negocio, persistencia de incidencias, outbox real y envío. La autenticación técnica mínima procede del cambio 0. El cambio 2 reemplaza los ejemplos por integración real preservando los recorridos aprobados.
+Fuera de alcance: pantallas de administración de autorizaciones, roles, sucursales y proveedores, consulta de auditoría y pantalla técnica de diagnóstico (el administrador es el de la franquicia, no el técnico: esas tareas las hace el equipo técnico y no tienen interfaz), parser XLSX real, deduplicación real, migraciones de negocio, persistencia de incidencias, outbox real y envío. La autenticación técnica mínima procede del cambio 0. El cambio 2 reemplaza los ejemplos por integración real preservando los recorridos aprobados.
 
 Entregar frontend navegable, estados de ejemplo, contrato documentado y aprobación del administrador. RNF aplicables: 04, 07, 08, 13 y 15. Los RF de la tabla se validan aquí en interfaz; su comportamiento real pertenece a los cambios 2 y 3.

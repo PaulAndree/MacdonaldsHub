@@ -6,7 +6,7 @@
 
 ## 1. Objetivo y alcance
 
-Implementar la API FastAPI y la lógica de negocio del único backend Python: modelo y migraciones, permisos, ingesta mediante el worker compartido, clasificación, staging, confirmación, outbox, consultas, métricas, alta manual, administración y auditoría. Integrar el frontend aprobado con datos reales.
+Implementar la API FastAPI y la lógica de negocio del único backend Python: modelo y migraciones, permisos, ingesta mediante el worker compartido, clasificación, staging, confirmación, outbox, consultas, métricas, alta manual y registro de auditoría. Integrar el frontend aprobado con datos reales. No hay API ni pantalla de administración ni de consulta de auditoría: las gestiona el equipo técnico.
 
 Al terminar, confirmar crea incidencias y correos pendientes, **pero no los envía**. El consumidor de correo pertenece al cambio 3. La auditoría se registra con cada operación desde su implementación.
 
@@ -98,13 +98,13 @@ Confirmación y limpieza se coordinan en PostgreSQL para que una operación no e
 
 **P-04, por definir antes de implementar el cálculo:** fecha por defecto de cada filtro, fórmula temporal de tasa y denominador, división por cero, criterio de antigüedad, restricciones de importe recuperado y reglas de suma con importes ausentes. El diseño puede mostrar ejemplos identificados; no convertirlos en fórmulas aprobadas.
 
-## 7. Alta manual y administración
+## 7. Alta manual y auditoría
 
 RF-22: formulario con los mismos campos de negocio y obligatoriedad básica del XLSX. Validar y comprobar proveedor + order ID; una clave existente avisa y no crea otra incidencia. Una nueva incidencia requiere revisión y confirmación antes de persistirse. Si genera correo, utiliza la misma transacción y outbox, nunca un envío directo. **P-12:** decidir si el alta manual de Uber Eats/Just Eat genera correo; no habilitar esa opción sin resolverlo.
 
-RF-18: administrar autorizaciones de identidades Google y roles, sucursales y proveedores. No crear contraseñas propias ni cuentas Google. Proveedores con destinatarios configurables; hasta definir los reales se utiliza solo el destinatario de prueba. Mantener coherencia entre allowlist y permisos aplicados por FastAPI. La interfaz completa usa las operaciones previstas en el contrato del cambio 1.
+RF-18 (retirado): no hay API ni pantalla para administrar autorizaciones de identidades Google y roles, sucursales y proveedores. El equipo técnico los mantiene con migraciones y configuración, y el backend solo los lee: la allowlist y los roles (el administrador inicial sale de la configuración), el catálogo de sucursales y los proveedores con destinatarios configurables. Hasta definir los reales (P-01) se utiliza solo el destinatario de prueba. Mantener coherencia entre allowlist y permisos aplicados por FastAPI. No crear contraseñas propias ni cuentas Google. Retirar una identidad la deja sin acceso aunque su sesión Google continúe.
 
-RF-19: auditoría de subidas, confirmaciones, envíos futuros, resultados, correcciones, altas manuales y configuración. Solo añadir registros; no editarlos ni borrarlos desde la interfaz. Enlazar el lote confirmado con original, usuario y fecha. La auditoría mínima de descartes no conserva filas ni archivo.
+RF-19 (solo registro): auditoría de subidas, confirmaciones, envíos futuros, resultados, correcciones y altas manuales. Solo se añaden registros: no existe operación para editarlos ni borrarlos. La aplicación no ofrece consulta de la auditoría; la consulta el equipo técnico sobre la base de datos. El lote confirmado queda enlazado con su original, usuario y fecha. La auditoría mínima de descartes no conserva filas ni archivo.
 
 ## 8. Requisitos funcionales y trazabilidad
 
@@ -123,8 +123,8 @@ RF-19: auditoría de subidas, confirmaciones, envíos futuros, resultados, corre
 | RF-15 | Métricas y seguimiento | Correo/Glovo separados y recuperación explícita; cálculo pendiente P-04 |
 | RF-16 | Consulta y exportación | Filtros respetados y valores opcionales conservados |
 | RF-17 | Descarte explícito | Cancelar y el botón Cerrar sesión eliminan temporales; sin caducidad automática |
-| RF-18 | Administración | Autorizaciones, roles, sucursales y proveedores desde la API |
-| RF-19 | Auditoría y original | Operaciones trazadas y original confirmado enlazado |
+| RF-18 | Administración (retirado) | Sin API ni pantalla: autorizaciones, roles, sucursales y proveedores los gestiona el equipo técnico y el backend los lee |
+| RF-19 | Auditoría y original | Operaciones registradas y original confirmado enlazado; sin consulta desde la aplicación |
 | RF-20 | Informe excluidas | XLSX con filas y motivos para corregir y volver a subir |
 | RF-21 | Resultados manuales | Parciales y correcciones con historial |
 | RF-22 | Alta manual | Misma unicidad y confirmación humana; correo pendiente P-12 |
@@ -159,7 +159,7 @@ Se conservan las reglas originales de negocio compatibles, agrupadas así: RN-01
 | BE-07 | Se edita destinatario o plantilla después de confirmar | El outbox conserva la versión autorizada |
 | BE-08 | Usuario fuera de allowlist o rol de consulta intenta mutar | Acceso denegado por FastAPI |
 | BE-09 | Se reinicia el worker durante preparación | Trabajo recuperable por su lote persistente sin incidencias definitivas anticipadas |
-| BE-10 | Se consulta auditoría de un lote confirmado | Usuario, fecha y enlace al original revisado |
+| BE-10 | Se confirma un lote | La auditoría registra usuario, fecha y enlace al original revisado, verificables en la base de datos |
 | BE-11 | Se limpia staging tras confirmar y se repite la confirmación | Incidencias y original conservados; mismo resultado guardado y ningún efecto nuevo |
 | BE-12 | Celda nativa con `2026-10-12 20:22`, otra solo con fecha y otro texto `12/10/2026` | La primera guarda fecha y hora Europe/Madrid, la segunda solo fecha sin hora, la tercera es error de fila |
 | BE-13 | Misma clave con y sin hora, o con horas distintas, frente a una incidencia existente | Conflicto por diferencia en la fecha/hora de incidencia |
@@ -177,13 +177,12 @@ Frontend conectado al backend, flujo de revisión/confirmación verificable, ori
 
 | Fase | Contenido | Verificación mínima |
 |---|---|---|
-| 1 | Modelo de datos, migraciones reversibles, permisos y auditoría | Migraciones arriba/abajo; permisos por rol; auditoría activa |
+| 1 | Modelo de datos, migraciones reversibles, permisos y auditoría; catálogo inicial de sucursales y proveedores por configuración | Migraciones arriba/abajo; permisos por rol (BE-08); auditoría activa |
 | 2 | Importación y clasificación (TDD): lectura XLSX, reglas de fila, staging, vista previa | E-01 a E-05, BE-01, BE-06, BE-09, BE-12 a BE-14, BE-17 |
 | 3 | Confirmación atómica e idempotente y outbox sin envío | E-06 a E-08, BE-02, BE-03, BE-07, BE-10, BE-11 |
 | 4 | Descarte, Cerrar sesión, lote único por usuario y limpieza | E-11, BE-04, BE-05, BE-15, BE-16 |
 | 5 | Incidencias, exportación, resultados y alta manual | E-12, E-13, RF-16, RF-21, RF-22 |
-| 6 | Administración de autorizaciones, roles, sucursales y proveedores | BE-08, RF-18 |
-| 7 | Métricas y panel. **Bloqueada hasta resolver P-04** | RF-15 |
-| 8 | Integración del frontend aprobado con la API real | Recorridos UI-01 a UI-12 contra la API real |
+| 6 | Métricas y panel. **Bloqueada hasta resolver P-04** | RF-15 |
+| 7 | Integración del frontend aprobado con la API real | Recorridos UI-01 a UI-12 contra la API real |
 
-El catálogo inicial de sucursales debe existir antes de la fase 2. La fase 2 requiere además P-06 y P-09 resueltos en lo que le afecta, y las fases 2 a 8 requieren la aprobación explícita del cambio 1 (la fase 1 no implementa lógica de negocio).
+El catálogo inicial de sucursales debe existir antes de la fase 2. La fase 2 requiere además P-06 y P-09 resueltos en lo que le afecta, y las fases 2 a 7 requieren la aprobación explícita del cambio 1 (la fase 1 no implementa lógica de negocio).
