@@ -48,11 +48,11 @@ Phases follow `docs/change_02_backend.md` section 11, in order. Each phase ends 
 
 ## 5. Phase 5: incidents, export, results, manual entry
 
-- [ ] 5.1 Implement incident list and detail with filters by provider, branch, state and the three dates, including history. Verify E-13 prerequisites, that "Sin sucursal" and absent values are explicit, and that amounts keep their digits (`12.345`).
-- [ ] 5.2 Implement the XLSX export with the same filters. Verify the file contains exactly the matching incidents and keeps optional values.
-- [ ] 5.3 Implement the manual Glovo claim, resolution or rejection with an explicit recovered amount (partial allowed) and the audited correction. **Gate:** do not add restrictions on the recovered amount (P-04) or a claim channel (P-11). Verify E-12: a partial recovery, then a correction, shows previous and new values and changes neither the batch nor the email.
-- [ ] 5.4 Implement manual entry with the same mandatory fields, the duplicate check, and creation only after the user reviews and confirms. **Gate:** P-12 is open, so no manual entry creates an outbox record until the administrator decides. Verify E-13: an existing key warns and creates nothing, and a new key is created once with audit and no outbox.
-- [ ] 5.5 Review of phase 5: re-run E-12, E-13, RF-16, RF-21 and RF-22 and confirm read-only roles can list and export but not change.
+- [x] 5.1 Implement incident list and detail with filters by provider, branch, state and the three dates, including history. Verify E-13 prerequisites, that "Sin sucursal" and absent values are explicit, and that amounts keep their digits (`12.345`).
+- [x] 5.2 Implement the XLSX export with the same filters. Verify the file contains exactly the matching incidents and keeps optional values.
+- [x] 5.3 Implement the manual Glovo claim, resolution or rejection with an explicit recovered amount (partial allowed) and the audited correction. **Gate:** do not add restrictions on the recovered amount (P-04) or a claim channel (P-11). Verify E-12: a partial recovery, then a correction, shows previous and new values and changes neither the batch nor the email.
+- [x] 5.4 Implement manual entry with the same mandatory fields, the duplicate check, and creation only after the user reviews and confirms. **Gate:** P-12 is open, so no manual entry creates an outbox record until the administrator decides. Verify E-13: an existing key warns and creates nothing, and a new key is created once with audit and no outbox.
+- [x] 5.5 Review of phase 5: re-run E-12, E-13, RF-16, RF-21 and RF-22 and confirm read-only roles can list and export but not change.
 
 ## 6. Phase 6: metrics and dashboard (blocked until P-04 is resolved)
 

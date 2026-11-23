@@ -142,9 +142,11 @@ class SqlBatches:
 class SqlTransaction:
     def __init__(self, connection: Connection) -> None:
         from app.adapters.db.confirmation import SqlConfirmationStore
+        from app.adapters.db.incidents import SqlIncidents
 
         self.batches = SqlBatches(connection)
         self.confirmation = SqlConfirmationStore(connection)
+        self.incidents = SqlIncidents(connection)
         self.audit = Auditor(SqlAuditLog(connection))
 
 
