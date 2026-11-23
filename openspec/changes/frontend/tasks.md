@@ -60,9 +60,9 @@ Source: `docs/change_01_frontend.md`. These tasks build a navigable interface on
 
 - [x] 8.1 Add the example-mode build argument to the frontend `Dockerfile` and the build scripts. Verify both images build and the standard image has no example marker.
 - [x] 8.2 Add the CI job that builds both variants and fails when the standard bundle contains an example marker. Verify it fails against a build that includes one.
-- [ ] 8.3 Add the example-mode input to the deploy workflow with the `-example` tag suffix and the production guard. Verify the guard rejects production with example mode and a test-environment deployment succeeds.
+- [x] 8.3 Add the example-mode input to the deploy workflow with the `-example` tag suffix and the production guard. Verify the guard rejects production with example mode and a test-environment deployment succeeds.
 - [x] 8.4 Add automated accessibility checks over every area and a manual keyboard checklist in `docs/approvals/keyboard-checklist.md`. Verify the automated checks pass and the checklist is completed for the import review flow (RNF-08).
-- [ ] 8.5 Deploy the example build to the `test` environment. Verify the example notice and test identification show and Google sign-in still protects access.
+- [x] 8.5 Deploy the example build to the `test` environment. Verify the example notice and test identification show and Google sign-in still protects access.
 
 ## 9. Review and approval
 
