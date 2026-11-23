@@ -22,6 +22,9 @@ from app.domain.incident_results import (
 )
 from app.domain.rows import Fields
 from app.services.audit import Auditor
+from app.services.confirmation import AuthorizedEmail, RecipientNotConfigured
+
+EMAIL_PROVIDERS = ("uber eats", "just eat")
 
 
 class IncidentNotFound(Exception):
@@ -132,7 +135,9 @@ class IncidentRepository(Protocol):
 
     def add_history(self, incident_id: str, actor: str, changes: list[Change]) -> None: ...
 
-    def insert_manual(self, fields: Fields, actor: str) -> str | None: ...
+    def insert_manual(self, fields: Fields, actor: str, state: str) -> str | None: ...
+
+    def add_outbox(self, incident_id: str, email: AuthorizedEmail) -> None: ...
 
     def active_branches(self) -> list[str]: ...
 
@@ -165,8 +170,14 @@ def _state(record: IncidentRecord) -> IncidentState:
 
 
 class IncidentService:
-    def __init__(self, uow: IncidentUnitOfWork, clock: Callable[[], datetime] = utc_now) -> None:
+    def __init__(
+        self,
+        uow: IncidentUnitOfWork,
+        email: Callable[[], AuthorizedEmail | None] = lambda: None,
+        clock: Callable[[], datetime] = utc_now,
+    ) -> None:
         self._uow = uow
+        self._email = email
         self._clock = clock
 
     # --- reading ---
@@ -269,21 +280,30 @@ class IncidentService:
         return ManualCheck("conflict" if differing else "duplicate", existing, differing)
 
     def create_manual(self, actor: str, fields: Fields) -> IncidentRecord:
-        """Saves a reviewed manual entry. It creates no email: that is pending P-12."""
+        """Saves a reviewed manual entry. Uber Eats and Just Eat get their email as a pending
+        outbox record in the same transaction; Glovo is claimed by hand and gets none (P-12).
+        Nothing is sent."""
         assert fields.provider is not None and fields.order_id is not None
         with self._uow() as tx:
             if fields.branch is not None and fields.branch not in tx.incidents.active_branches():
                 raise UnknownBranch(fields.branch)
-            incident_id = tx.incidents.insert_manual(fields, actor)
+            sends_email = fields.provider in EMAIL_PROVIDERS
+            email = self._email() if sends_email else None
+            if sends_email and email is None:
+                raise RecipientNotConfigured(fields.provider)
+            state = "pending_send" if sends_email else "imported_no_email"
+            incident_id = tx.incidents.insert_manual(fields, actor, state)
             if incident_id is None:
                 raise IncidentExists(fields.order_id)
+            if email is not None:
+                tx.incidents.add_outbox(incident_id, email)
             tx.audit.record(
                 actor,
                 "incident.create_manual",
                 "incident",
                 incident_id,
                 "success",
-                {"provider": fields.provider},
+                {"provider": fields.provider, "email": email is not None},
             )
             created = tx.incidents.get(incident_id)
             assert created is not None

@@ -440,16 +440,16 @@ def test_an_existing_key_is_a_409_and_creates_nothing(seeded) -> None:  # type: 
         assert conn.execute(text("SELECT count(*) FROM incident")).scalar() == 4
 
 
-def test_a_reviewed_new_entry_is_saved_once_without_email_and_with_audit(seeded) -> None:  # type: ignore[no-untyped-def]
+def test_a_reviewed_new_entry_is_saved_once_with_its_email_and_with_audit(seeded) -> None:  # type: ignore[no-untyped-def]
     api, _ = seeded
     created = post(api, "/api/incidents/manual", CORE)
     assert created.status_code == 201
     body = created.json()
-    assert body["batchId"] is None and body["status"] == "imported_no_email"
+    assert body["batchId"] is None and body["status"] == "pending_send"  # it has its email
     assert (body["orderId"], body["claimAmount"], body["incidentTime"]) == ("UE-900", "18.75", None)
     assert post(api, "/api/incidents/manual", CORE).status_code == 409  # not twice
     with api.engine.connect() as conn:
-        assert conn.execute(text("SELECT count(*) FROM outbox")).scalar() == 0  # P-12: no email
+        assert conn.execute(text("SELECT count(*) FROM outbox")).scalar() == 1  # P-12: it has email
         assert (
             conn.execute(text("SELECT source FROM incident WHERE order_id = 'UE-900'")).scalar()
             == "manual"
@@ -459,14 +459,14 @@ def test_a_reviewed_new_entry_is_saved_once_without_email_and_with_audit(seeded)
         ).all()
     assert audit == [(ADMIN, "success")]
     detail = get(api, f"/api/incidents/{body['id']}").json()
-    assert [(h["kind"], h["newValue"]) for h in detail["history"]] == [
-        ("imported", "imported_no_email")
-    ]
+    assert [(h["kind"], h["newValue"]) for h in detail["history"]] == [("imported", "pending_send")]
 
 
-def test_a_manual_entry_can_then_be_claimed_by_hand(seeded) -> None:  # type: ignore[no-untyped-def]
+def test_a_manual_glovo_entry_can_then_be_claimed_by_hand(seeded) -> None:  # type: ignore[no-untyped-def]
     api, _ = seeded
-    incident = post(api, "/api/incidents/manual", CORE).json()["id"]
+    incident = post(
+        api, "/api/incidents/manual", {**CORE, "provider": "glovo", "orderId": "GL-900"}
+    ).json()["id"]
     assert (
         post(api, f"/api/incidents/{incident}/claim", {"claimDate": "2026-11-21"}).status_code
         == 200
@@ -508,3 +508,101 @@ def test_the_branch_is_lowercased_as_in_the_file(seeded) -> None:  # type: ignor
         post(api, "/api/incidents/manual", {**CORE, "branch": "Centro"}).json()["branch"]
         == "centro"
     )
+
+
+# --- P-12: a manual Uber Eats or Just Eat entry creates its email, Glovo does not ------------------------------------------
+
+
+def outbox_rows(api: Any) -> list[tuple[str, str, str | None, str]]:
+    with api.engine.connect() as conn:
+        return [
+            tuple(r)  # type: ignore[misc]
+            for r in conn.execute(
+                text(
+                    "SELECT o.state, o.recipient, o.batch_id::text, i.order_id FROM outbox o "
+                    "JOIN incident i ON i.id = o.incident_id ORDER BY i.order_id"
+                )
+            )
+        ]
+
+
+@pytest.mark.parametrize("provider", ["uber eats", "just eat"])
+def test_a_manual_entry_of_an_email_provider_creates_one_pending_email(
+    seeded, provider: str
+) -> None:  # type: ignore[no-untyped-def]
+    api, _ = seeded
+    created = post(api, "/api/incidents/manual", {**CORE, "provider": provider}).json()
+    assert created["status"] == "pending_send"
+    assert outbox_rows(api) == [("pending", "test-recipient@example.test", None, "UE-900")]
+    with api.engine.connect() as conn:
+        row = conn.execute(text("SELECT template_version, subject, body FROM outbox")).one()
+    assert row[0] == "example-1" and "{orderId}" in row[2]  # the authorized text, kept
+
+
+def test_a_manual_glovo_entry_has_no_email_and_is_imported_without_one(seeded) -> None:  # type: ignore[no-untyped-def]
+    api, _ = seeded
+    created = post(
+        api, "/api/incidents/manual", {**CORE, "provider": "glovo", "orderId": "GL-9"}
+    ).json()
+    assert created["status"] == "imported_no_email" and created["channel"] == "glovo"
+    assert outbox_rows(api) == []
+
+
+def test_without_an_authorized_recipient_an_email_entry_is_refused_and_nothing_is_created(
+    seeded,
+) -> None:  # type: ignore[no-untyped-def]
+    api, _ = seeded
+    api.app.state.settings.test_recipient_email = None
+    response = post(api, "/api/incidents/manual", CORE)
+    assert response.status_code == 409 and response.json()["code"] == "recipient_not_configured"
+    with api.engine.connect() as conn:
+        assert (
+            conn.execute(text("SELECT count(*) FROM incident WHERE order_id = 'UE-900'")).scalar()
+            == 0
+        )
+    # Glovo needs no recipient.
+    glovo = post(api, "/api/incidents/manual", {**CORE, "provider": "glovo", "orderId": "GL-8"})
+    assert glovo.status_code == 201
+
+
+def test_the_incident_and_its_email_are_created_together_or_not_at_all(seeded) -> None:  # type: ignore[no-untyped-def]
+    api, _ = seeded
+    with api.engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE FUNCTION fail_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ "
+                "BEGIN RAISE EXCEPTION 'disk full'; END; $$"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE TRIGGER fail_outbox BEFORE INSERT ON outbox FOR EACH ROW EXECUTE FUNCTION fail_outbox()"
+            )
+        )
+    with pytest.raises(Exception, match="disk full"):
+        post(api, "/api/incidents/manual", CORE)
+    with api.engine.connect() as conn:
+        assert (
+            conn.execute(text("SELECT count(*) FROM incident WHERE order_id = 'UE-900'")).scalar()
+            == 0
+        )
+        assert (
+            conn.execute(
+                text("SELECT count(*) FROM audit_log WHERE operation = 'incident.create_manual'")
+            ).scalar()
+            == 0
+        )
+
+
+def test_creating_the_email_sends_nothing(seeded) -> None:  # type: ignore[no-untyped-def]
+    import os
+
+    import httpx
+
+    base = os.environ.get("TEST_MAILPIT_URL")
+    if not base:
+        pytest.skip("TEST_MAILPIT_URL is not set")
+    api, _ = seeded
+    httpx.delete(f"{base}/api/v1/messages")
+    post(api, "/api/incidents/manual", CORE)
+    assert httpx.get(f"{base}/api/v1/messages").json()["total"] == 0

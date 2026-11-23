@@ -9,11 +9,13 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 
 from app.adapters.xlsx.writer import build_incident_export
+from app.api.authorized_email import authorized_email
 from app.api.errors import CONFLICT, NOT_FOUND, SECURED
 from app.api.security import ApiError, require_permission
 from app.domain.incident_results import ClaimNotAvailable, NoResultToCorrect, NotClaimed
 from app.domain.rows import Fields
 from app.services.authorization import AuthorizedUser
+from app.services.confirmation import RecipientNotConfigured
 from app.services.incidents import (
     HistoryItem,
     IncidentExists,
@@ -189,7 +191,9 @@ def incident_service(request: Request) -> IncidentService:
     if getattr(state, "incident_service", None) is None:
         from app.adapters.db.unit_of_work import SqlUnitOfWork
 
-        state.incident_service = IncidentService(SqlUnitOfWork(state.engine))
+        state.incident_service = IncidentService(
+            SqlUnitOfWork(state.engine), email=lambda: authorized_email(request)
+        )
     service: IncidentService = state.incident_service
     return service
 
@@ -324,6 +328,14 @@ def create_manual(body: IncidentCore, user: Writer, service: Service) -> Inciden
             {
                 "code": "incident_exists",
                 "message": "Ya existe una incidencia con ese proveedor y ese Order ID.",
+            },
+        ) from None
+    except RecipientNotConfigured:
+        raise ApiError(
+            409,
+            {
+                "code": "recipient_not_configured",
+                "message": "No hay un destinatario autorizado configurado para los correos.",
             },
         ) from None
     except UnknownBranch:  # pragma: no cover - checked above, kept for a race with the catalog

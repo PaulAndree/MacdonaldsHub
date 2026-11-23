@@ -7,6 +7,7 @@ from sqlalchemy import Connection, text
 
 from app.domain.incident_results import Change, IncidentState
 from app.domain.rows import Fields
+from app.services.confirmation import AuthorizedEmail
 from app.services.incidents import HistoryItem, IncidentFilters, IncidentPage, IncidentRecord
 
 _COLUMNS = (
@@ -143,13 +144,13 @@ class SqlIncidents:
                 },
             )
 
-    def insert_manual(self, fields: Fields, actor: str) -> str | None:
+    def insert_manual(self, fields: Fields, actor: str, state: str) -> str | None:
         found = self._c.execute(
             text(
                 "INSERT INTO incident (provider, order_id, incident_date, incident_time, branch, "
                 "claim_amount, provider_costs, total, description, state, source, created_by) "
                 "VALUES (:provider, :order_id, :date, :time, :branch, :claim, :costs, :total, "
-                ":description, 'imported_no_email', 'manual', :actor) "
+                ":description, :state, 'manual', :actor) "
                 "ON CONFLICT (provider, order_id) DO NOTHING RETURNING id"
             ),
             {
@@ -163,6 +164,7 @@ class SqlIncidents:
                 "total": fields.total,
                 "description": fields.description,
                 "actor": actor,
+                "state": state,
             },
         ).scalar()
         if found is None:
@@ -170,11 +172,27 @@ class SqlIncidents:
         self._c.execute(
             text(
                 "INSERT INTO incident_history (incident_id, actor, kind, field, new) "
-                "VALUES (:i, :actor, 'imported', 'status', 'imported_no_email')"
+                "VALUES (:i, :actor, 'imported', 'status', :state)"
             ),
-            {"i": found, "actor": actor},
+            {"i": found, "actor": actor, "state": state},
         )
         return str(found)
+
+    def add_outbox(self, incident_id: str, email: AuthorizedEmail) -> None:
+        """The pending email of a manual entry, with the authorized text kept as at confirmation."""
+        self._c.execute(
+            text(
+                "INSERT INTO outbox (incident_id, batch_id, state, recipient, template_version, "
+                "subject, body) VALUES (:i, NULL, 'pending', :recipient, :version, :subject, :body)"
+            ),
+            {
+                "i": uuid.UUID(incident_id),
+                "recipient": email.recipient,
+                "version": email.template_version,
+                "subject": email.subject,
+                "body": email.body,
+            },
+        )
 
     def active_branches(self) -> list[str]:
         return [

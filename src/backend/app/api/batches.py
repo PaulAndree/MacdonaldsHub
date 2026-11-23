@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.adapters.xlsx.writer import build_excluded_report
+from app.api.authorized_email import authorized_email
 from app.api.errors import CONFLICT, NOT_FOUND, SECURED, UNPROCESSABLE
 from app.api.security import ApiError, current_user, require_permission
 from app.domain import email_template
@@ -20,7 +21,6 @@ from app.services.batches import (
     UploadNotFound,
 )
 from app.services.confirmation import (
-    AuthorizedEmail,
     BatchNotConfirmable,
     ConfirmationService,
     RecipientNotConfigured,
@@ -473,19 +473,6 @@ class ConfirmationResult(BaseModel):
     excluded: list[ExcludedRow]
     excludedAtConfirmation: list[ExcludedRow]
     alreadyConfirmed: bool
-
-
-def authorized_email(request: Request) -> AuthorizedEmail | None:
-    """The recipient and template authorized now: only the configured test recipient (P-01)."""
-    recipient = request.app.state.settings.test_recipient_email
-    if not recipient:
-        return None
-    return AuthorizedEmail(
-        recipient=recipient,
-        template_version=email_template.TEMPLATE_VERSION,
-        subject=email_template.SUBJECT,
-        body=email_template.BODY,
-    )
 
 
 def confirmation_service(request: Request) -> ConfirmationService:
