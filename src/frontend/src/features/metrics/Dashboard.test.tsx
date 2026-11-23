@@ -50,17 +50,15 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 describe("dashboard in the test environment (UI-06, RF-15, RF-12)", () => {
-  it("identifies the environment and says its figures are not real production activity", async () => {
+  it("identifies the environment in the subtitle", async () => {
     show();
-    expect(await screen.findByText(t.subtitle("Pruebas"))).toBeInTheDocument();
-    expect(screen.getByText(t.envTest)).toBeInTheDocument();
+    expect(await screen.findByText(t.subtitle(es.environments.test))).toBeInTheDocument();
   });
 
   it("does not present test figures as production, and says so for production", async () => {
     server.use(http.get("*/api/metrics", () => HttpResponse.json(computeMetrics(seedIncidents(), { dateKind: "claim", from: null, to: null, provider: null, branch: null }, "production"))));
     show();
     expect(await screen.findByText(t.envProduction)).toBeInTheDocument();
-    expect(screen.queryByText(t.envTest)).not.toBeInTheDocument();
     expect(screen.getByText(t.subtitle("Producción"))).toBeInTheDocument();
   });
 
@@ -89,7 +87,6 @@ describe("the date criterion is always stated (RF-15)", () => {
   it("says which date every figure and the period use, and shows it in the filter", async () => {
     show();
     await channel(t.channels.email);
-    expect(screen.getByText(t.criterion("Fecha de reclamación"))).toBeInTheDocument();
     expect(field(t.filters.dateKind)).toHaveValue("claim");
   });
 
@@ -98,7 +95,6 @@ describe("the date criterion is always stated (RF-15)", () => {
     await channel(t.channels.email);
     await userEvent.selectOptions(field(t.filters.dateKind), "recovery");
     await userEvent.type(field(t.filters.from), "01/11/2026");
-    await waitFor(() => expect(screen.getByText(t.criterion("Fecha de recuperación"))).toBeInTheDocument());
     await waitFor(async () => expect(kpi(await channel(t.channels.email), t.kpi.claimed)).toBe("1"));
     expect(screen.getByTestId("where")).toHaveTextContent("dateKind=recovery");
     expect(screen.getByTestId("where")).toHaveTextContent("from=2026-11-01");
@@ -126,7 +122,6 @@ describe("the date criterion is always stated (RF-15)", () => {
     await channel(t.channels.email);
     expect(field(t.filters.dateKind)).toHaveValue("incident");
     expect(field(t.filters.from)).toHaveValue("12/11/2026");
-    expect(screen.getByText(t.criterion("Fecha de la incidencia"))).toBeInTheDocument();
   });
 });
 

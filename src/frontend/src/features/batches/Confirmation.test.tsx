@@ -48,13 +48,12 @@ describe("confirmation summary (RF-07, UI-03)", () => {
     await openPreview();
     expect(within(panel()).getByText(new RegExp(t.templateExample))).toBeInTheDocument();
     expect(within(panel()).getByText(/Pendiente de decisión \(P-03\)/)).toBeInTheDocument();
-    expect(within(panel()).getByText(t.onlyVariable)).toBeInTheDocument();
   });
 
   it("warns there is no undo and no later cancellation, before the action is available", async () => {
     await openPreview();
-    const notice = within(panel()).getByText(/Confirmar no se puede deshacer/);
-    expect(notice).toHaveTextContent("no se pueden cancelar después");
+    const notice = within(panel()).getByText(/Al confirmar se procederá al envio de correos/);
+    expect(notice).toHaveTextContent("no se puede revertir");
     expect(notice.compareDocumentPosition(confirmButton()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

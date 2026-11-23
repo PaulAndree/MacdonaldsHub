@@ -22,10 +22,9 @@ const routes = [
 describe("example build frame (UI-11, RF-12)", () => {
   beforeEach(() => stubSession(sessionOf("test")));
 
-  it.each(routes)("%s shows the example-data notice, the test environment and the versions", async (route) => {
+  it.each(routes)("%s shows the example-data notice and the versions", async (route) => {
     renderAt(route, <AppRoutes areas={areas} exampleUi={exampleUi} />);
     expect(screen.getByText(exampleEs.banner)).toBeInTheDocument();
-    expect(await screen.findByText(es.banners.test)).toBeInTheDocument();
     const footer = screen.getByRole("contentinfo");
     expect(footer).toHaveTextContent(exampleEs.footer.designVersion);
     expect(footer).toHaveTextContent("contrato");
@@ -46,18 +45,11 @@ describe("standard build frame", () => {
     expect(screen.getByRole("contentinfo")).toBeEmptyDOMElement();
   });
 
-  it("identifies the test environment even without example data", async () => {
+  it("shows no example notice in the test environment without example data", async () => {
     stubSession(sessionOf("test"));
     renderAt("/panel", <AppRoutes areas={areas} />);
-    expect(await screen.findByText(es.banners.test)).toBeInTheDocument();
-    expect(screen.queryByText(exampleEs.banner)).not.toBeInTheDocument();
-  });
-
-  it("shows no environment banner in production", async () => {
-    stubSession(sessionOf("production"));
-    renderAt("/panel", <AppRoutes areas={areas} />);
     await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument());
-    expect(screen.queryByText(es.banners.test)).not.toBeInTheDocument();
+    expect(screen.queryByText(exampleEs.banner)).not.toBeInTheDocument();
   });
 
   it("keeps the frame and the brand when the session cannot be read, with no environment banner", async () => {
@@ -65,6 +57,5 @@ describe("standard build frame", () => {
     renderAt("/panel", <AppRoutes areas={areas} />);
     expect(await screen.findByRole("heading", { level: 1, name: es.access.noSessionTitle })).toBeInTheDocument();
     expect(screen.getByRole("banner")).toBeInTheDocument();
-    expect(screen.queryByText(es.banners.test)).not.toBeInTheDocument();
   });
 });

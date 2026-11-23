@@ -41,8 +41,6 @@ export default function QueueScreen() {
           const empty = view.batches.length === 0 && view.status.inFlight === 0 && Object.values(view.totals).every((n) => n === 0);
           return (
             <>
-              <p>{t.rules}</p>
-              <p className="muted">{t.testRecipient}</p>
               <QueueControl status={view.status} />
               {view.nextEligibleAt && !view.status.paused && <p className="muted">{t.nextEligible(formatTimestamp(view.nextEligibleAt))}</p>}
               {empty ? (

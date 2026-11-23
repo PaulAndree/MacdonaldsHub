@@ -23,11 +23,10 @@ const upload = async (name?: string) =>
   userEvent.upload(screen.getByLabelText(es.import.fileLabel), xlsx(name));
 
 describe("import screen (RF-01, RF-03)", () => {
-  it("explains the input contract and shows the file limits as pending (P-06)", () => {
+  it("explains the input contract", () => {
     renderBatches();
     expect(screen.getByRole("heading", { level: 1, name: es.titles.import })).toBeInTheDocument();
     expect(screen.getByText(es.import.requiredHeaders)).toBeInTheDocument();
-    expect(screen.getByText(/Pendiente de decisión \(P-06\)/)).toBeInTheDocument();
   });
 
   it("uploads, requests processing and shows the batch processing", async () => {

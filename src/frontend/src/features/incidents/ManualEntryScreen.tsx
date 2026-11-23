@@ -178,7 +178,7 @@ export default function ManualEntryScreen() {
   const blocked = step.name === "blocked" ? step : null;
   return (
     <>
-      <PageHeader title={es.titles.manualEntry} subtitle={t.subtitle} />
+      <PageHeader title={es.titles.manualEntry} />
       {blocked && (
         <div className="notice notice--danger" role="alert">
           <h2 style={{ marginTop: 0 }}>{blocked.check.outcome === "duplicate" ? t.duplicateTitle : t.conflictTitle}</h2>

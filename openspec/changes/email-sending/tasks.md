@@ -31,7 +31,7 @@ Order: schema and settings, the rules and the consumer under test, the transport
 
 - [x] 5.1 Wire the consumer and the recovery into the worker tick, after preparation, the original copy and the cleanup. Verify the worker with a restart in the middle of a send and two overlapping workers.
 - [x] 5.2 Verify the complete flow with real PostgreSQL, Azurite and Mailpit: upload, review, confirm, resume the queue, the emails arrive one at a time at least 30 seconds apart at the test recipient only, the incidents become Reclamada, the batch Completado, and the dashboard counts the email claims (E-09, MAIL-11).
-- [ ] 5.3 Add the sending steps to `scripts/smoke-real-api.sh` and run it in CI: resume, wait for the first email, check the queue and the captured message. Verify it passes locally and in CI.
+- [x] 5.3 Add the sending steps to `scripts/smoke-real-api.sh` and run it in CI: resume, wait for the first email, check the queue and the captured message. Verify it passes locally and in CI.
 
 ## 6. Contract and interface
 

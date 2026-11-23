@@ -140,8 +140,6 @@ export default function IncidentsScreen() {
         )}
       </form>
 
-      <p className="muted">{t.exportHelp}</p>
-
       <QueryView query={list} isEmpty={(data) => data.total === 0} emptyTitle={t.empty}>
         {(data) => (
           <div className="card">
