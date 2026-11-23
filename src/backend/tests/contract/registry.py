@@ -7,9 +7,6 @@ this change on purpose (design D13). An operation in neither list must be served
 
 # Operation ids of docs/api/openapi.yaml still to implement in this change, with their phase.
 PENDING: dict[str, int] = {
-    "getPendingBatch": 4,
-    "discardUnconfirmedBatches": 4,
-    "discardBatch": 4,
     "listIncidents": 5,
     "exportIncidents": 5,
     "checkManualIncident": 5,

@@ -95,6 +95,40 @@ class SqlBatches:
         ).first()
         return _record(row) if row else None
 
+    def lock_for_owner(self, batch_id: str, owner: str) -> BatchRecord | None:
+        try:
+            key = uuid.UUID(batch_id)
+        except ValueError:
+            return None
+        row = self._c.execute(
+            text(f"{_SELECT} WHERE b.id = :id AND b.owner = :owner FOR UPDATE OF b"),
+            {"id": key, "owner": owner},
+        ).first()
+        return _record(row) if row else None
+
+    def lock_unconfirmed(self, owner: str) -> list[BatchRecord]:
+        rows = self._c.execute(
+            text(
+                f"{_SELECT} WHERE b.owner = :owner "
+                "AND b.state IN ('uploaded', 'processing', 'in_review') ORDER BY b.created_at "
+                "FOR UPDATE OF b"
+            ),
+            {"owner": owner},
+        )
+        return [_record(r) for r in rows]
+
+    def discard(self, batch_id: str) -> BatchRecord:
+        key = uuid.UUID(batch_id)
+        self._c.execute(text("DELETE FROM batch_row WHERE batch_id = :id"), {"id": key})
+        self._c.execute(
+            text(
+                "UPDATE batch SET state = 'discarded', cleanup = 'pending', lease_until = NULL, "
+                "updated_at = now() WHERE id = :id"
+            ),
+            {"id": key},
+        )
+        return _record(self._c.execute(text(f"{_SELECT} WHERE b.id = :id"), {"id": key}).one())
+
     def set_state(self, batch_id: str, state: str) -> BatchRecord:
         key = uuid.UUID(batch_id)
         self._c.execute(

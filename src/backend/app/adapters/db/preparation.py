@@ -163,7 +163,8 @@ class SqlPreparationRepository:
             conn.execute(
                 text(
                     "UPDATE batch SET state = 'rejected', rejection_reason = :r, "
-                    "rejection_detail = :d, sha256 = :h, lease_until = NULL, updated_at = now() "
+                    "rejection_detail = :d, sha256 = :h, lease_until = NULL, cleanup = 'pending', "
+                    "updated_at = now() "
                     "WHERE id = :id"
                 ),
                 {"id": key, "r": reason, "d": detail, "h": sha256},

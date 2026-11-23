@@ -39,12 +39,12 @@ Phases follow `docs/change_02_backend.md` section 11, in order. Each phase ends 
 
 ## 4. Phase 4: discard, Cerrar sesión, one batch per user, cleanup
 
-- [ ] 4.1 Implement discard of one batch in Subido, Procesando or En revisión and the Cerrar sesión operation that discards all the user's unconfirmed batches, both in one transaction and without ending the Easy Auth session. Verify E-11 and that a failure leaves the batch En revisión unchanged (BE-15).
-- [ ] 4.2 Enforce the one unconfirmed batch per user through the partial unique index and return the pending batch in the refusal. Verify BE-16 with two simultaneous requests, a Rechazado batch not blocking, and a Procesando batch being discardable.
-- [ ] 4.3 Implement the worker cleanup that removes the blob and staging of discarded and rejected batches, records failures and retries, and never claims removal early. Verify with Azurite that a failed removal is recorded and completed later.
-- [ ] 4.4 Coordinate cleanup and confirmation on the batch row. Verify BE-05: a confirmed original is never deleted and a discarded batch is never confirmed, under concurrent runs.
-- [ ] 4.5 Verify there is no automatic expiry: a batch En revisión stays confirmable after a long idle period and after the browser closes (BE-04). **Gate:** physical cleanup cadence and target stay as decided in P-05; none is invented.
-- [ ] 4.6 Review of phase 4: re-run E-11, BE-04, BE-05, BE-15 and BE-16.
+- [x] 4.1 Implement discard of one batch in Subido, Procesando or En revisión and the Cerrar sesión operation that discards all the user's unconfirmed batches, both in one transaction and without ending the Easy Auth session. Verify E-11 and that a failure leaves the batch En revisión unchanged (BE-15).
+- [x] 4.2 Enforce the one unconfirmed batch per user through the partial unique index and return the pending batch in the refusal. Verify BE-16 with two simultaneous requests, a Rechazado batch not blocking, and a Procesando batch being discardable.
+- [x] 4.3 Implement the worker cleanup that removes the blob and staging of discarded and rejected batches, records failures and retries, and never claims removal early. Verify with Azurite that a failed removal is recorded and completed later.
+- [x] 4.4 Coordinate cleanup and confirmation on the batch row. Verify BE-05: a confirmed original is never deleted and a discarded batch is never confirmed, under concurrent runs.
+- [x] 4.5 Verify there is no automatic expiry: a batch En revisión stays confirmable after a long idle period and after the browser closes (BE-04). **Gate:** physical cleanup cadence and target stay as decided in P-05; none is invented. The worker cleans on every tick until the administrator sets a cadence.
+- [x] 4.6 Review of phase 4: re-run E-11, BE-04, BE-05, BE-15 and BE-16.
 
 ## 5. Phase 5: incidents, export, results, manual entry
 

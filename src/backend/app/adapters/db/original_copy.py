@@ -33,7 +33,11 @@ class SqlOriginalCopyRepository:
         )
         with self._engine.begin() as conn:
             conn.execute(
-                text("UPDATE batch SET original_copy = :s, updated_at = now() WHERE id = :id"),
+                text(
+                    "UPDATE batch SET original_copy = :s, updated_at = now(), "
+                    "cleanup = CASE WHEN :s = 'verified' THEN 'pending' ELSE cleanup END "
+                    "WHERE id = :id"
+                ),
                 {"s": status, "id": uuid.UUID(batch_id)},
             )
             Auditor(SqlAuditLog(conn)).record(

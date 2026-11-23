@@ -25,6 +25,7 @@ class FakeBatches:
 
     def __init__(self) -> None:
         self.rows: dict[str, BatchRecord] = {}
+        self.cleanup: dict[str, str] = {}
 
     def add(self, record: BatchRecord) -> None:
         if any(r.owner == record.owner and r.state in self.UNCONFIRMED for r in self.rows.values()):
@@ -40,6 +41,16 @@ class FakeBatches:
             (r for r in self.rows.values() if r.owner == owner and r.state in self.UNCONFIRMED),
             None,
         )
+
+    def lock_for_owner(self, batch_id: str, owner: str) -> BatchRecord | None:
+        return self.get_for_owner(batch_id, owner)
+
+    def lock_unconfirmed(self, owner: str) -> list[BatchRecord]:
+        return [r for r in self.rows.values() if r.owner == owner and r.state in self.UNCONFIRMED]
+
+    def discard(self, batch_id: str) -> BatchRecord:
+        self.cleanup[batch_id] = "pending"
+        return self.set_state(batch_id, "discarded")
 
     def set_state(self, batch_id: str, state: str) -> BatchRecord:
         self.rows[batch_id] = replace(self.rows[batch_id], state=state)  # type: ignore[arg-type]

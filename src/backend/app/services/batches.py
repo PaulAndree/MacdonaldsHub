@@ -26,6 +26,10 @@ class UploadNotFound(Exception):
     """The file of the batch is not in storage."""
 
 
+class BatchAlreadyConfirmed(Exception):
+    """A confirmed batch cannot be cancelled or undone."""
+
+
 class UnconfirmedBatchRace(Exception):
     """The database refused a second unconfirmed batch of the same user."""
 
@@ -73,6 +77,16 @@ class BatchRepository(Protocol):
     def get_for_owner(self, batch_id: str, owner: str) -> BatchRecord | None: ...
 
     def find_unconfirmed(self, owner: str) -> BatchRecord | None: ...
+
+    def lock_for_owner(self, batch_id: str, owner: str) -> BatchRecord | None:
+        """Take the batch row, so a confirmation or a cleanup waits for this unit of work."""
+        ...
+
+    def lock_unconfirmed(self, owner: str) -> list[BatchRecord]: ...
+
+    def discard(self, batch_id: str) -> BatchRecord:
+        """Make it unconfirmable, drop its prepared rows and queue the removal of its file."""
+        ...
 
     def set_state(self, batch_id: str, state: str) -> BatchRecord: ...
 
@@ -137,6 +151,46 @@ class BatchService:
         if record is None:
             raise BatchNotFound(batch_id)
         return record
+
+    def pending(self, owner: str) -> BatchRecord | None:
+        """The user's unconfirmed batch, if any. There is no expiry (RF-17)."""
+        with self._uow() as tx:
+            found = tx.batches.find_unconfirmed(owner)
+            return tx.batches.get_for_owner(found.id, owner) if found else None
+
+    def discard(self, owner: str, batch_id: str) -> BatchRecord:
+        """Cancel a batch before confirming it (RF-17). Allowed in every unconfirmed state."""
+        with self._uow() as tx:
+            record = tx.batches.lock_for_owner(batch_id, owner)
+            if record is None:
+                raise BatchNotFound(batch_id)
+            if record.state in ("confirmed", "completed"):
+                raise BatchAlreadyConfirmed(batch_id)
+            if record.state == "discarded":
+                return record
+            discarded = tx.batches.discard(batch_id)
+            # The audit of a discard holds no rows and no file: only who, when and which batch.
+            tx.audit.record(
+                owner, "batch.discard", "batch", batch_id, "success", {"previous": record.state}
+            )
+            return discarded
+
+    def discard_unconfirmed(self, owner: str) -> list[str]:
+        """What Cerrar sesión calls: discard the user's unconfirmed batches, and nothing else."""
+        with self._uow() as tx:
+            ids = []
+            for record in tx.batches.lock_unconfirmed(owner):
+                tx.batches.discard(record.id)
+                tx.audit.record(
+                    owner,
+                    "batch.discard",
+                    "batch",
+                    record.id,
+                    "success",
+                    {"previous": record.state},
+                )
+                ids.append(record.id)
+            return ids
 
     def complete_upload(self, owner: str, batch_id: str) -> BatchRecord:
         """The browser says the upload finished: check the file is there and ask for processing."""

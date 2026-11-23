@@ -106,7 +106,10 @@ class BlobStorageService:
         if container == CONFIRMED:
             # Mirrors the container-level immutability Azure enforces; Azurite cannot (P-05).
             raise ImmutableContainerError("Blobs in the 'confirmed' container are immutable")
-        self._client.get_blob_client(container, blob_name).delete_blob()
+        try:
+            self._client.get_blob_client(container, blob_name).delete_blob()
+        except ResourceNotFoundError:
+            return  # already gone: the goal is reached
 
 
 def create_only_permission() -> BlobSasPermissions:
