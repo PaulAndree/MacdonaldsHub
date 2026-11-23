@@ -189,6 +189,6 @@ Frontend conectado al backend, flujo de revisión/confirmación verificable, ori
 | 4 | Descarte, Cerrar sesión, lote único por usuario y limpieza | E-11, BE-04, BE-05, BE-15, BE-16 |
 | 5 | Incidencias, exportación, resultados y alta manual | E-12, E-13, RF-16, RF-21, RF-22 |
 | 6 | Métricas y panel (P-04 resuelto) | RF-15 |
-| 7 | Integración del frontend aprobado con la API real | Recorridos UI-01 a UI-12 contra la API real |
+| 7 | Integración del frontend aprobado con la API real | Recorridos UI-01 a UI-06 y UI-09 a UI-12 contra la API real; UI-07 y UI-08 se verifican en el cambio 3, que implementa el envío y las operaciones de la cola de correo |
 
 El catálogo inicial de sucursales debe existir antes de la fase 2. La fase 2 requiere además P-06 y P-09 resueltos en lo que le afecta, y las fases 2 a 7 requieren la aprobación explícita del cambio 1 (la fase 1 no implementa lógica de negocio).

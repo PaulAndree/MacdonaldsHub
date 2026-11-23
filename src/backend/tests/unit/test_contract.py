@@ -98,3 +98,14 @@ def test_a_field_added_by_hand_to_a_served_response_fails_the_contract(approved,
     changed["components"]["schemas"]["Session"]["properties"]["extra"] = {"type": "string"}
     served = set(operations(changed)) & set(operations(approved))
     assert differences(approved, changed, served) == ["getSession: response 200 differs"]
+
+
+def test_the_deferred_operations_are_recorded_in_the_walkthrough_document() -> None:
+    document = (CONTRACT.parents[1] / "approvals" / "change_02_backend.md").read_text(
+        encoding="utf-8"
+    )
+    for operation in DEFERRED:
+        assert operation in document, (
+            f"{operation} is deferred but not recorded for the walkthroughs"
+        )
+    assert "UI-07" in document and "UI-08" in document
