@@ -1,0 +1,7 @@
+# Lint rules for the contract. Run: npm run contract:lint (from src/frontend).
+extends:
+  - recommended
+rules:
+  info-license: off
+  no-server-example.com: off
+  no-empty-servers: off

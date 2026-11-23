@@ -161,14 +161,13 @@ Easy Auth autentica con Google. FastAPI utiliza una identidad procedente del mec
 |---|---|---|
 | Subir, revisar, cancelar antes de confirmar y confirmar | Sí | No |
 | Alta manual, resultados y sus correcciones | Sí | No |
-| Administrar autorizaciones, roles, sucursales y proveedores | Sí | No |
 | Pausar / reanudar cola | Sí | No |
 | Activar envío real tras resolver sus requisitos | Sí | No |
 | Consultar incidencias, historial y panel | Sí | Sí |
 
 **Transporte de identidad (ADR-12):** Easy Auth (Google) se configura solo en la Container App del frontend, con autenticación obligatoria. El frontend sirve la SPA y reenvía `/api/*` a la API, que tiene **ingress interno** (accesible solo dentro del entorno de Container Apps) y sin Easy Auth propio. El proxy del frontend reenvía únicamente las cabeceras de identidad de Easy Auth (`X-MS-CLIENT-PRINCIPAL*`), que Easy Auth sobrescribe y no acepta del cliente. FastAPI trata esa cabecera como confiable solo en el entorno Azure, rechaza con 401 las peticiones sin ella y comprueba después la allowlist. El worker no tiene ingress. El identificador estable de la allowlist (sub de Google o correo) se fija en P-07. En local, el adaptador de identidad de desarrollo sustituye a esta cabecera y no puede activarse en Azure (RNF-16). El permiso temporal de subida a Blob no pasa por el proxy; el CORS de Blob admite solo el origen del frontend.
 
-Allowlist y roles forman una autorización coherente. Retirar una identidad impide acceso aunque su sesión Google continúe. La aplicación no crea cuentas Google ni guarda contraseñas. Administrador inicial configurado fuera del código.
+Allowlist y roles forman una autorización coherente. Retirar una identidad impide acceso aunque su sesión Google continúe. La aplicación no crea cuentas Google ni guarda contraseñas. Administrador inicial configurado fuera del código. La allowlist, los roles, las sucursales y los proveedores los mantiene el equipo técnico con migraciones y configuración: la aplicación no tiene pantalla ni API para editarlos.
 
 Secretos fuera de repositorio, logs y base de datos en claro: `.env` local excluido del versionado y Azure Key Vault con identidad administrada en Azure. `StorageService` permite Azurite y Blob por configuración. El permiso temporal de subida se limita al blob autorizado y no permite sustituir el original confirmado.
 

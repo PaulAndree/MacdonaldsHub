@@ -38,10 +38,10 @@ Recorrido único: **usuario → login con Google → Easy Auth de Azure Containe
 
 | Rol | Funciones |
 |---|---|
-| Administrador | Subir, revisar, cancelar antes de confirmar, confirmar, consultar, registrar resultados, alta manual y administración. Existe un administrador inicial autorizado. |
+| Administrador | Subir, revisar, cancelar antes de confirmar, confirmar, consultar, registrar resultados y alta manual. Existe un administrador inicial autorizado. |
 | Gerente global | Consulta de incidencias y panel; habilitación de este usuario secundario [por confirmar]. |
 
-La aplicación administra autorizaciones y roles, no contraseñas ni cuentas de Google. La matriz de permisos está en [architecture.md](architecture.md).
+**Administrador** designa al administrador de la franquicia, el usuario de negocio. No es el administrador técnico (el desarrollador), que no tiene interfaz: las autorizaciones y roles, las sucursales, los proveedores, la consulta de auditoría y el diagnóstico técnico los gestiona el equipo técnico, no la aplicación. La aplicación no maneja contraseñas ni cuentas de Google. La matriz de permisos está en [architecture.md](architecture.md).
 
 ## 4. Contrato de entrada XLSX
 
@@ -116,7 +116,7 @@ Fecha por defecto de filtros, fórmula temporal de tasa, criterio de antigüedad
 
 ## 9. Alcance v1
 
-Incluye importación, vista previa, confirmación idempotente, deduplicación, outbox, envío espaciado sin reintentos, resultados manuales, recuperación parcial, alta manual, administración, auditoría y backups. El alta manual comparte validación, deduplicación y confirmación; no crea correos sin aprobación humana.
+Incluye importación, vista previa, confirmación idempotente, deduplicación, outbox, envío espaciado sin reintentos, resultados manuales, recuperación parcial, alta manual, registro de auditoría y backups. El alta manual comparte validación, deduplicación y confirmación; no crea correos sin aprobación humana.
 
 Fuera de alcance: correo para Glovo, cancelación posterior a confirmar, reintentos o reenvíos de correo, lectura automática de respuestas, recopilación desde portales, conciliación con liquidaciones, evidencias adjuntas y segunda interfaz. Se mantiene la regla de no excluir incidencias por antigüedad.
 

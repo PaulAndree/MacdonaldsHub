@@ -4,7 +4,14 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY index.html tsconfig.json vite.config.ts ./
 COPY src ./src
-RUN npm run build
+COPY scripts ./scripts
+COPY public-example ./public-example
+# EXAMPLE_MODE=true builds the example-data variant (design D1). It exists only for the test environment:
+# the default is the standard build, and the check below fails the image if the bundle is not the variant asked for.
+ARG EXAMPLE_MODE=false
+RUN if [ "$EXAMPLE_MODE" = "true" ]; then variant=example; else variant=standard; fi \
+    && if [ "$variant" = "example" ]; then npm run build:example; else npm run build; fi \
+    && node scripts/check-bundle.mjs "$variant" dist
 
 # Serves the SPA and proxies /api/* to the internal API. Listens on 3000.
 FROM nginxinc/nginx-unprivileged:1.27-alpine

@@ -11,6 +11,10 @@ on:
         type: choice
         options: [test, production]
         default: test
+      example:
+        description: Build the frontend with example data (test environment only; rejected for production)
+        type: boolean
+        default: false
       stage:
         description: infrastructure = shared resources only; applications = full deployment
         type: choice
@@ -26,7 +30,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  guard:
+    # Runs first and needs no Azure access: example data can never reach production, and nothing else runs if it is asked to.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Example data is only for the test environment
+        run: .github/scripts/guard-example-mode.sh "${{ inputs.environment }}" "${{ inputs.example }}"
+
   ci:
+    needs: guard
     # Deployment is gated on the whole CI workflow (lint, tests, images): if any job fails, nothing deploys.
     uses: ./.github/workflows/ci.yml
 
@@ -37,7 +50,9 @@ jobs:
     env:
       RG: rg-deliveryhub-${{ inputs.environment }}
       PARAMS: infra/main.${{ inputs.environment == 'production' && 'prod' || 'test' }}.bicepparam
-      IMAGE_TAG: ${{ github.sha }}
+      # An example-data image is never confused with a standard one: its tag carries the suffix.
+      IMAGE_TAG: ${{ github.sha }}${{ inputs.example && '-example' || '' }}
+      EXAMPLE_MODE: ${{ inputs.example && 'true' || 'false' }}
       EASY_AUTH_ENABLED: ${{ vars.EASY_AUTH_ENABLED }}
       GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
       ALLOWLIST_IDENTIFIER: ${{ vars.ALLOWLIST_IDENTIFIER }}
@@ -78,7 +93,7 @@ jobs:
         run: |
           az acr login --name "${{ steps.infra.outputs.registry }}"
           docker build -t "${{ steps.infra.outputs.login }}/delivery-hub-backend:$IMAGE_TAG" src/backend
-          docker build -t "${{ steps.infra.outputs.login }}/delivery-hub-frontend:$IMAGE_TAG" src/frontend
+          docker build --build-arg EXAMPLE_MODE="$EXAMPLE_MODE" -t "${{ steps.infra.outputs.login }}/delivery-hub-frontend:$IMAGE_TAG" src/frontend
           docker push "${{ steps.infra.outputs.login }}/delivery-hub-backend:$IMAGE_TAG"
           docker push "${{ steps.infra.outputs.login }}/delivery-hub-frontend:$IMAGE_TAG"
 

@@ -4,6 +4,10 @@ context: |
   Delivery Hub is a delivery-incident claims app for a McDonald's franchise.
   Approved source requirements are in Spanish Markdown under docs/.
   Treat approved user decisions as authoritative over superseded wording.
+  "Administrator" is the franchise's business administrator, not the technical
+  administrator (developer). The interface has no screens for authorizations and
+  roles, branches, providers, audit consultation or technical diagnostics: the
+  technical team handles them.
   This context describes intended behavior, not implemented capabilities.
 
   ARCHITECTURE
@@ -125,9 +129,10 @@ context: |
      Explicit administrator approval is required before business implementation.
   2. backend - docs/change_02_backend.md
      Ingestion, validation, staging, atomic confirmation/outbox, queries,
-     metrics, manual entry, administration, audit and frontend integration.
+     metrics, manual entry, audit logging and frontend integration. No
+     administration or audit-consultation API or screen (RF-18 retired).
      Creates pending email records but does not send them.
-     tasks.md MUST follow the eight ordered phases in docs/change_02_backend.md
+     tasks.md MUST follow the seven ordered phases in docs/change_02_backend.md
      section 11, each verified and reviewed before the next starts.
   3. email-sending - docs/change_03_envio_correos.md
      Outbox consumption, one attempt per email, 30-second spacing, test
@@ -135,7 +140,7 @@ context: |
 
   CAPABILITIES (consolidated specs, one folder each under openspec/specs/)
   platform, identity-access, xlsx-import, batch-confirmation, incidents,
-  metrics, administration, audit, email-outbox. Place each requirement in
+  metrics, audit, email-outbox. Place each requirement in
   exactly one capability; a change may touch several.
 
   DOCUMENTATION AND WORKING RULES
@@ -173,4 +178,4 @@ rules:
     - Test email errors and interrupted attempts without resending; test the global 30-second interval and pause.
     - Use real local PostgreSQL and Azurite for integration; frontend design examples are not integration evidence.
     - Require administrator approval of change 1 layout and flows before implementing change 2 business logic.
-    - Split change 2 tasks into the eight phases of docs/change_02_backend.md section 11, in order; the metrics phase stays blocked until P-04 is resolved.
+    - Split change 2 tasks into the seven phases of docs/change_02_backend.md section 11, in order; the metrics phase stays blocked until P-04 is resolved.
