@@ -105,7 +105,8 @@ def upgrade() -> None:
             "cleanup IN ('none', 'pending', 'done', 'failed')", name="ck_batch_cleanup"
         ),
     )
-    # At most one unconfirmed batch per user (RF-17); rejected, discarded and confirmed ones do not count.
+    # At most one unconfirmed batch per user (RF-17); rejected, discarded and confirmed ones
+    # do not count.
     op.create_index(
         "uq_batch_one_unconfirmed",
         "batch",
