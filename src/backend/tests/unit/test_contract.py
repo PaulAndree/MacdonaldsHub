@@ -1,5 +1,6 @@
 """The API against the approved contract (ADR-16, BE-18): a difference blocks the integration."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -41,7 +42,13 @@ def generated() -> dict:  # type: ignore[type-arg]
 
 
 def test_the_approved_contract_is_the_one_in_the_repository(approved) -> None:  # type: ignore[no-untyped-def]
-    assert approved["info"]["version"] == "0.1.0"
+    # The version is whatever the administrator's approval record names, not a number written here.
+    record = (CONTRACT.parents[1] / "approvals" / "change_01_frontend.md").read_text(
+        encoding="utf-8"
+    )
+    recorded = re.search(r"<!--\s*approval:\s*contractVersion=(\S+)", record)
+    assert recorded is not None, "the approval record has no marker"
+    assert approved["info"]["version"] == recorded.group(1)
     assert len(operations(approved)) == 24
 
 
