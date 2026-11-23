@@ -9,8 +9,6 @@ this change on purpose (design D13). An operation in neither list must be served
 PENDING: dict[str, int] = {
     "getPendingBatch": 4,
     "discardUnconfirmedBatches": 4,
-    "getConfirmationSummary": 3,
-    "confirmBatch": 3,
     "discardBatch": 4,
     "listIncidents": 5,
     "exportIncidents": 5,

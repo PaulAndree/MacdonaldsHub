@@ -62,6 +62,7 @@ jobs:
       # Names of the branches (P-01) and the switch that turns imports on (needs the catalog).
       BRANCH_CATALOG: ${{ vars.BRANCH_CATALOG }}
       IMPORTS_ENABLED: ${{ vars.IMPORTS_ENABLED }}
+      TEST_RECIPIENT_EMAIL: ${{ vars.TEST_RECIPIENT_EMAIL }}
     steps:
       - uses: actions/checkout@v4
 

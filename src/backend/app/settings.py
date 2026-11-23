@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     # Imports stay off until the catalog of branches is loaded (RF-06, P-01). The real branch names
     # come from the administrator through configuration; there is no default list.
     imports_enabled: bool = False
+    # The only recipient allowed until the real ones are defined (P-01). No default on purpose.
+    test_recipient_email: str | None = None
     branch_catalog: str | None = None
 
     @property

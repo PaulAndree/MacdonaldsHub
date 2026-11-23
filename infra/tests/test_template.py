@@ -155,11 +155,25 @@ def test_storage_is_locked_down_and_has_both_containers(main: dict[str, Any]) ->
     assert confirmed["properties"]["immutableStorageWithVersioning"]["enabled"] is True
 
 
-def test_no_identity_can_delete_or_write_in_confirmed(main: dict[str, Any]) -> None:  # P-05
+def test_no_identity_can_delete_in_confirmed_and_the_worker_can_create_there(  # P-05, ADR-14
+    main: dict[str, Any],
+) -> None:
     on_confirmed = [role for name, role in role_assignments(main) if "'confirmed'" in name]
-    assert on_confirmed, "expected a role assignment scoped to confirmed"
     reader = "2a2b9908-6ea1-4ae2-8e65-a410df84e7d1"  # Storage Blob Data Reader
-    assert on_confirmed == [reader]  # read-only: no write, no delete for any identity (P-05)
+    contributor = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"  # Storage Blob Data Contributor
+    assert sorted(on_confirmed) == sorted([reader, contributor])
+    # The contributor role includes delete, so exactly one assignment on `confirmed` carries a
+    # condition that removes it; the read-only one needs none.
+    conditions = [
+        r["properties"]["condition"]
+        for d in deployments(main).values()
+        for r in nested_resources(d)
+        if r["type"] == "Microsoft.Authorization/roleAssignments"
+        and "'confirmed'" in r["name"]
+        and "condition" in r["properties"]
+    ]
+    assert len(conditions) == 1
+    assert "blobs/delete" in conditions[0] and conditions[0].startswith("(!(ActionMatches")
 
 
 def test_cors_allows_only_the_frontend_origin(main: dict[str, Any]) -> None:
@@ -228,10 +242,12 @@ def test_the_branch_catalog_has_no_invented_default_and_imports_start_off() -> N
     template = (INFRA / "main.bicep").read_text()
     assert "param branchCatalog string = ''" in template
     assert "param importsEnabled bool = false" in template
+    assert "param testRecipientEmail string = ''" in template
     for f in ("main.test.bicepparam", "main.prod.bicepparam"):
         text = (INFRA / f).read_text()
         assert "readEnvironmentVariable('BRANCH_CATALOG', '')" in text
         assert "readEnvironmentVariable('IMPORTS_ENABLED', 'false')" in text
+        assert "readEnvironmentVariable('TEST_RECIPIENT_EMAIL', '')" in text  # P-01
 
 
 def test_initial_admin_is_seeded_by_an_explicit_job(main: dict[str, Any]) -> None:  # BASE-03

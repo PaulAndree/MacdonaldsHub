@@ -20,6 +20,7 @@ param initialAdminEmail = readEnvironmentVariable('INITIAL_ADMIN_EMAIL', '')
 param initialAdminSubject = readEnvironmentVariable('INITIAL_ADMIN_SUBJECT', '')
 param branchCatalog = readEnvironmentVariable('BRANCH_CATALOG', '')
 param importsEnabled = readEnvironmentVariable('IMPORTS_ENABLED', 'false') == 'true'
+param testRecipientEmail = readEnvironmentVariable('TEST_RECIPIENT_EMAIL', '')
 param alertEmail = readEnvironmentVariable('ALERT_EMAIL', '')
 
 // Provisional sizing (P-05 pending).

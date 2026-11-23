@@ -165,8 +165,9 @@ def test_one_outbox_record_per_incident(engine, database_url: str) -> None:  # t
         conn.execute(text(_batch("ana", "confirmed")))
         batch = conn.execute(text("SELECT id FROM batch")).scalar()
     insert = text(
-        "INSERT INTO outbox (id, incident_id, batch_id, state, recipient, template_version) "
-        "VALUES (gen_random_uuid(), :i, :b, 'pending', 'test@example.test', 'v0')"
+        "INSERT INTO outbox (id, incident_id, batch_id, state, recipient, template_version, "
+        "subject, body) VALUES (gen_random_uuid(), :i, :b, 'pending', 'test@example.test', "
+        "'v0', 's', 'b')"
     )
     with engine.begin() as conn:
         conn.execute(insert, {"i": incident, "b": batch})

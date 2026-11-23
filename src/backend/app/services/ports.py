@@ -70,6 +70,10 @@ class StorageService(Protocol):
 
     def read_blob(self, container: str, blob_name: str) -> bytes: ...
 
+    def write_new_blob(self, container: str, blob_name: str, data: bytes) -> bool:
+        """Create a blob, never replacing one: False when it already exists."""
+        ...
+
     def delete_blob(self, container: str, blob_name: str) -> None: ...
 
 

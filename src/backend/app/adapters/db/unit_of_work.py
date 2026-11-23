@@ -107,7 +107,10 @@ class SqlBatches:
 
 class SqlTransaction:
     def __init__(self, connection: Connection) -> None:
+        from app.adapters.db.confirmation import SqlConfirmationStore
+
         self.batches = SqlBatches(connection)
+        self.confirmation = SqlConfirmationStore(connection)
         self.audit = Auditor(SqlAuditLog(connection))
 
 

@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.adapters.xlsx.writer import build_excluded_report
-from app.api.errors import CONFLICT, NOT_FOUND, SECURED
+from app.api.errors import CONFLICT, NOT_FOUND, SECURED, UNPROCESSABLE
 from app.api.security import ApiError, require_permission
+from app.domain import email_template
 from app.services.authorization import AuthorizedUser
 from app.services.batches import (
     BatchNotFound,
@@ -17,12 +18,20 @@ from app.services.batches import (
     UnconfirmedBatchExists,
     UploadNotFound,
 )
+from app.services.confirmation import (
+    AuthorizedEmail,
+    BatchNotConfirmable,
+    ConfirmationService,
+    RecipientNotConfigured,
+    ReviewedVersionMismatch,
+)
 from app.services.ports import UploadGrant
 from app.services.preview import PreviewRow, PreviewService, RowsPage
 
 router = APIRouter(tags=["batches"])
 
 Importer = Annotated[AuthorizedUser, Depends(require_permission("import"))]
+Confirmer = Annotated[AuthorizedUser, Depends(require_permission("confirm"))]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 BatchState = Literal[
     "uploaded", "processing", "in_review", "rejected", "discarded", "confirmed", "completed"
@@ -360,3 +369,155 @@ def download_excluded_report(
         media_type=XLSX,
         headers={"Content-Disposition": 'attachment; filename="filas-excluidas.xlsx"'},
     )
+
+
+class Recipient(BaseModel):
+    kind: Literal["test"]
+    label: str
+
+
+class EmailTemplate(BaseModel):
+    subject: str
+    body: str
+    isFinal: bool
+    pendingDecision: str | None
+
+
+class ConfirmationSummary(BaseModel):
+    batchId: str
+    reviewedVersion: Sha256
+    incidentsToCreate: int = Field(ge=0)
+    emailsToGenerate: int = Field(ge=0)
+    withoutEmail: int = Field(ge=0)
+    excluded: int = Field(ge=0)
+    recipient: Recipient
+    template: EmailTemplate
+
+
+class ConfirmRequest(BaseModel):
+    reviewedVersion: Sha256
+
+
+class ExcludedRow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    rowNumber: int = Field(ge=1)
+    row_class: RowClass = Field(alias="class")
+    reason: str
+
+
+class ConfirmationResult(BaseModel):
+    batchId: str
+    confirmedAt: datetime
+    createdIncidents: int = Field(ge=0)
+    pendingEmails: int = Field(ge=0)
+    withoutEmail: int = Field(ge=0)
+    excluded: list[ExcludedRow]
+    excludedAtConfirmation: list[ExcludedRow]
+    alreadyConfirmed: bool
+
+
+def authorized_email(request: Request) -> AuthorizedEmail | None:
+    """The recipient and template authorized now: only the configured test recipient (P-01)."""
+    recipient = request.app.state.settings.test_recipient_email
+    if not recipient:
+        return None
+    return AuthorizedEmail(
+        recipient=recipient,
+        template_version=email_template.TEMPLATE_VERSION,
+        subject=email_template.SUBJECT,
+        body=email_template.BODY,
+    )
+
+
+def confirmation_service(request: Request) -> ConfirmationService:
+    state = request.app.state
+    if getattr(state, "confirmation_service", None) is None:
+        from app.adapters.db.unit_of_work import SqlUnitOfWork
+
+        state.confirmation_service = ConfirmationService(
+            SqlUnitOfWork(state.engine), email=lambda: authorized_email(request)
+        )
+    service: ConfirmationService = state.confirmation_service
+    return service
+
+
+@router.get(
+    "/api/batches/{batchId}/confirmation-summary",
+    operation_id="getConfirmationSummary",
+    response_model=ConfirmationSummary,
+    responses={**SECURED, **NOT_FOUND},
+)
+def get_confirmation_summary(
+    batchId: str, user: Importer, service: Annotated[BatchService, Depends(batch_service)]
+) -> ConfirmationSummary:
+    try:
+        record = service.get(user.identifier, batchId)
+    except BatchNotFound:
+        raise not_found() from None
+    if record.state != "in_review" or record.summary is None or record.sha256 is None:
+        raise not_found()  # nothing prepared to confirm yet
+    summary = record.summary
+    return ConfirmationSummary(
+        batchId=record.id,
+        reviewedVersion=record.sha256,
+        incidentsToCreate=summary.new,
+        emailsToGenerate=summary.emails_to_generate,
+        withoutEmail=summary.without_email,
+        excluded=summary.duplicate + summary.conflict + summary.error,
+        recipient=Recipient(kind="test", label="Destinatario de prueba"),
+        template=EmailTemplate(
+            subject=email_template.SUBJECT,
+            body=email_template.BODY,
+            isFinal=False,
+            pendingDecision=email_template.PENDING_DECISION,
+        ),
+    )
+
+
+@router.post(
+    "/api/batches/{batchId}/confirm",
+    operation_id="confirmBatch",
+    response_model=ConfirmationResult,
+    responses={**SECURED, **NOT_FOUND, **CONFLICT, **UNPROCESSABLE},
+)
+def confirm_batch(
+    batchId: str,
+    body: ConfirmRequest,
+    user: Confirmer,
+    service: Annotated[ConfirmationService, Depends(confirmation_service)],
+) -> ConfirmationResult:
+    try:
+        result = service.confirm(user.identifier, batchId, body.reviewedVersion)
+    except BatchNotFound:
+        raise not_found() from None
+    except BatchNotConfirmable as exc:
+        if exc.discarded:
+            raise ApiError(
+                409,
+                {
+                    "code": "batch_discarded",
+                    "message": "El lote fue descartado y ya no se puede confirmar.",
+                },
+            ) from None
+        raise ApiError(
+            409,
+            {"code": "batch_not_reviewable", "message": "El lote no está listo para confirmarse."},
+        ) from None
+    except ReviewedVersionMismatch:
+        raise ApiError(
+            422,
+            {
+                "code": "reviewed_version_mismatch",
+                "message": "La versión revisada no coincide con el archivo subido.",
+            },
+        ) from None
+    except RecipientNotConfigured:
+        raise ApiError(
+            409,
+            {
+                "code": "recipient_not_configured",
+                "message": "No hay un destinatario autorizado configurado para los correos.",
+            },
+        ) from None
+    return ConfirmationResult.model_validate(result)

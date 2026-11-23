@@ -1,6 +1,7 @@
 """API entrypoint. Run with: uvicorn app.api.main:create_app --factory --host 0.0.0.0 --port 8000"""
 
 from fastapi import FastAPI, Response
+from fastapi.exceptions import RequestValidationError
 from opentelemetry import trace
 from opentelemetry.trace import Tracer
 from sqlalchemy import Engine
@@ -9,7 +10,12 @@ from app.adapters.db.allowlist import SqlAllowlistRepository
 from app.adapters.db.engine import make_engine, ping
 from app.adapters.registry import default_registry
 from app.api.batches import router as batches_router
-from app.api.security import ApiError, AuthMiddleware, api_error_handler
+from app.api.security import (
+    ApiError,
+    AuthMiddleware,
+    api_error_handler,
+    validation_error_handler,
+)
 from app.api.session import router as session_router
 from app.api.technical import router as technical_router
 from app.api.telemetry import TelemetryMiddleware
@@ -50,6 +56,7 @@ def build_app(
         return {"status": "ok", "database": "ok"}
 
     app.add_exception_handler(ApiError, api_error_handler)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.include_router(session_router)
     app.include_router(batches_router)
     app.include_router(technical_router)

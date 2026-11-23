@@ -24,5 +24,7 @@ def client(database_url: str, azurite_connection_string: str):  # type: ignore[n
             {"a": ADMIN},
         )
     test_client.engine = engine  # type: ignore[attr-defined]
+    # The only recipient allowed until the real ones exist (P-01): a test address.
+    test_client.app.state.settings.test_recipient_email = "test-recipient@example.test"
     yield test_client
     engine.dispose()

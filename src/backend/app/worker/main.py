@@ -7,9 +7,11 @@ from opentelemetry import trace
 
 from app.adapters.db.advisory_lock import AdvisoryLock
 from app.adapters.db.engine import make_engine
+from app.adapters.db.original_copy import SqlOriginalCopyRepository
 from app.adapters.db.preparation import SqlPreparationRepository
 from app.adapters.registry import default_registry
 from app.composition import Container
+from app.services.original_copy import OriginalCopyService
 from app.services.preparation import PreparationService
 from app.settings import StartupError, load_settings_or_exit
 from app.startup_checks import require_catalog
@@ -31,8 +33,11 @@ def main() -> None:
         raise SystemExit(f"Startup refused: {exc}") from None
     preparation = PreparationService(SqlPreparationRepository(engine), container.storage())
 
+    copier = OriginalCopyService(SqlOriginalCopyRepository(engine), container.storage())
+
     def prepare() -> None:
         preparation.process_pending()
+        copier.process_pending()
 
     worker = Worker(
         AdvisoryLock(engine),

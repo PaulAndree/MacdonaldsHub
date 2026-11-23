@@ -27,15 +27,15 @@ Phases follow `docs/change_02_backend.md` section 11, in order. Each phase ends 
 
 ## 3. Phase 3: atomic confirmation and outbox without sending
 
-- [ ] 3.1 Write failing tests, then implement the confirmation use case in one transaction with the batch row lock: state and reviewed hash checks, revalidation, `ON CONFLICT DO NOTHING` for overtaken keys, outbox rows, history, stored result and audit. Verify E-06 (80 incidents, 60 pending emails, nothing sent) on a real PostgreSQL.
-- [ ] 3.2 Make confirmation idempotent and safe under concurrency. Verify E-07, BE-03 (two simultaneous confirmations, one wins) and BE-11 (repeat after staging cleanup returns the stored result).
-- [ ] 3.3 Inject a failure midway through confirmation. Verify E-08: no incident, outbox row or confirmed state remains.
-- [ ] 3.4 Handle keys created by another batch during review. Verify BE-02: the row is excluded, the rest is imported, and the result reports it.
-- [ ] 3.5 Store the authorized recipient and template version on each outbox row, with no secrets, and use only the configured test recipient. **Gate:** the test recipient address comes from the administrator (P-01). Verify BE-07: editing the configuration afterwards does not change existing rows.
-- [ ] 3.6 Add the Bicep role letting the worker identity create (never overwrite or delete) blobs in `confirmed`. Verify the template checks in `infra/tests` still pass and the role has no delete.
-- [ ] 3.7 Copy the original to `confirmed` after commit under a name set by the batch, verify its SHA-256, record the link in audit, and alert on a discrepancy. Verify with Azurite that the copy is verified, that a failure is retried, and that the temporary blob is not deleted before verification.
-- [ ] 3.8 Mark batches Completado at confirmation when they have no email, and keep sending disabled. Verify a Glovo-only batch completes and that nothing in the code path sends a message.
-- [ ] 3.9 Review of phase 3: re-run E-06 to E-08, BE-02, BE-03, BE-07, BE-10 and BE-11, and confirm audit records the confirmation (BE-10).
+- [x] 3.1 Write failing tests, then implement the confirmation use case in one transaction with the batch row lock: state and reviewed hash checks, revalidation, `ON CONFLICT DO NOTHING` for overtaken keys, outbox rows, history, stored result and audit. Verify E-06 (80 incidents, 60 pending emails, nothing sent) on a real PostgreSQL.
+- [x] 3.2 Make confirmation idempotent and safe under concurrency. Verify E-07, BE-03 (two simultaneous confirmations, one wins) and BE-11 (repeat after staging cleanup returns the stored result).
+- [x] 3.3 Inject a failure midway through confirmation. Verify E-08: no incident, outbox row or confirmed state remains.
+- [x] 3.4 Handle keys created by another batch during review. Verify BE-02: the row is excluded, the rest is imported, and the result reports it.
+- [x] 3.5 Store the authorized recipient and template version on each outbox row, with no secrets, and use only the configured test recipient. **Gate:** the test recipient address comes from the administrator (P-01); it is read from `TEST_RECIPIENT_EMAIL` (GitHub variable, passed by Bicep), and until it is set a batch with emails cannot be confirmed (409 `recipient_not_configured`). Verify BE-07: editing the configuration afterwards does not change existing rows.
+- [x] 3.6 Add the Bicep role letting the worker identity write to `confirmed` with a condition that removes the delete action (the copy itself is created without overwrite, and P-05 retention will also protect it). Verify the template checks in `infra/tests` pass and the only role with write carries that condition.
+- [x] 3.7 Copy the original to `confirmed` after commit under a name set by the batch, verify its SHA-256, record the link in audit, and alert on a discrepancy. Verify with Azurite that the copy is verified, that a failure is retried, and that the temporary blob is not deleted before verification.
+- [x] 3.8 Mark batches Completado at confirmation when they have no email, and keep sending disabled. Verify a Glovo-only batch completes and that nothing in the code path sends a message.
+- [x] 3.9 Review of phase 3: re-run E-06 to E-08, BE-02, BE-03, BE-07, BE-10 and BE-11, and confirm audit records the confirmation (BE-10).
 
 ## 4. Phase 4: discard, Cerrar sesión, one batch per user, cleanup
 

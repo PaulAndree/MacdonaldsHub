@@ -27,6 +27,9 @@ param initialAdminSubject string = ''
 param branchCatalog string = ''
 @description('Enables importing XLSX files; the processes refuse to start if the branch catalog is empty.')
 param importsEnabled bool = false
+
+@description('The only recipient allowed until the real ones exist (P-01). Empty means emails cannot be authorized.')
+param testRecipientEmail string = ''
 param alertEmail string = ''
 
 // Sizing and redundancy are provisional until P-05 sets availability and backup objectives.
@@ -177,7 +180,8 @@ var backendEnv = concat(
   empty(initialAdminEmail) ? [] : [{ name: 'INITIAL_ADMIN_EMAIL', value: initialAdminEmail }],
   empty(initialAdminSubject) ? [] : [{ name: 'INITIAL_ADMIN_SUBJECT', value: initialAdminSubject }],
   empty(branchCatalog) ? [] : [{ name: 'BRANCH_CATALOG', value: branchCatalog }],
-  importsEnabled ? [{ name: 'IMPORTS_ENABLED', value: 'true' }] : []
+  importsEnabled ? [{ name: 'IMPORTS_ENABLED', value: 'true' }] : [],
+  empty(testRecipientEmail) ? [] : [{ name: 'TEST_RECIPIENT_EMAIL', value: testRecipientEmail }]
 )
 
 module migrateJob 'modules/container-job.bicep' = if (deployJobs) {

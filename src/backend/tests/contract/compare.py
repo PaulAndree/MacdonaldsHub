@@ -149,8 +149,10 @@ def differences(approved: Json, generated: Json, operation_ids: set[str]) -> lis
         if a_body != g_body:
             problems.append(f"{op_id}: request body differs")
         # 422 is FastAPI's automatic answer to a malformed request; the contract does not list it.
-        a_codes = set(a_op["responses"]) - {"422"}
-        g_codes = set(g_op["responses"]) - {"422"}
+        a_codes = set(a_op["responses"])
+        g_codes = set(g_op["responses"])
+        if "422" not in a_codes:
+            g_codes -= {"422"}
         if a_codes != g_codes:
             problems.append(f"{op_id}: status codes {sorted(g_codes)} instead of {sorted(a_codes)}")
         for code in sorted(a_codes & g_codes):

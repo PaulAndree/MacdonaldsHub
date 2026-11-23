@@ -81,6 +81,13 @@ async def api_error_handler(_: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(exc.body, status_code=exc.status_code)
 
 
+async def validation_error_handler(_: Request, exc: Exception) -> JSONResponse:
+    """A malformed request answers with the contract's Error body, not FastAPI's own shape."""
+    return JSONResponse(
+        {"code": "invalid_request", "message": "La solicitud no es válida."}, status_code=422
+    )
+
+
 def require_permission(permission: Permission) -> Callable[..., AuthorizedUser]:
     """Authorizes one operation by the permission matrix. A refusal changes nothing (BE-08).
 

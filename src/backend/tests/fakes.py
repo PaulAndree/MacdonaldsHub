@@ -84,5 +84,11 @@ class FakeStorage:
     def read_blob(self, container: str, blob_name: str) -> bytes:
         return b""
 
+    def write_new_blob(self, container: str, blob_name: str, data: bytes) -> bool:
+        if (container, blob_name) in self.blobs:
+            return False
+        self.blobs[(container, blob_name)] = len(data)
+        return True
+
     def delete_blob(self, container: str, blob_name: str) -> None:
         self.blobs.pop((container, blob_name), None)

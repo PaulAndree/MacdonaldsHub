@@ -21,6 +21,9 @@ FORBIDDEN_RESPONSE: dict[int | str, dict[str, Any]] = {
 }
 # Every operation behind the session answers these two.
 SECURED: dict[int | str, dict[str, Any]] = {**NOT_AUTHENTICATED_RESPONSE, **FORBIDDEN_RESPONSE}
+UNPROCESSABLE: dict[int | str, dict[str, Any]] = {
+    422: {"model": ErrorBody, "description": "The request cannot be processed as sent."}
+}
 NOT_FOUND: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorBody, "description": "The object does not exist."}
 }
