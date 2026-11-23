@@ -22,6 +22,11 @@ param googleClientId string = ''
 param allowlistIdentifier string = ''
 param initialAdminEmail string = ''
 param initialAdminSubject string = ''
+
+@description('Comma-separated branch names loaded by the seed job (P-01). Imports stay off until it is set.')
+param branchCatalog string = ''
+@description('Enables importing XLSX files; the processes refuse to start if the branch catalog is empty.')
+param importsEnabled bool = false
 param alertEmail string = ''
 
 // Sizing and redundancy are provisional until P-05 sets availability and backup objectives.
@@ -170,7 +175,9 @@ var backendEnv = concat(
   ],
   empty(allowlistIdentifier) ? [] : [{ name: 'ALLOWLIST_IDENTIFIER', value: allowlistIdentifier }],
   empty(initialAdminEmail) ? [] : [{ name: 'INITIAL_ADMIN_EMAIL', value: initialAdminEmail }],
-  empty(initialAdminSubject) ? [] : [{ name: 'INITIAL_ADMIN_SUBJECT', value: initialAdminSubject }]
+  empty(initialAdminSubject) ? [] : [{ name: 'INITIAL_ADMIN_SUBJECT', value: initialAdminSubject }],
+  empty(branchCatalog) ? [] : [{ name: 'BRANCH_CATALOG', value: branchCatalog }],
+  importsEnabled ? [{ name: 'IMPORTS_ENABLED', value: 'true' }] : []
 )
 
 module migrateJob 'modules/container-job.bicep' = if (deployJobs) {
@@ -189,7 +196,8 @@ module migrateJob 'modules/container-job.bicep' = if (deployJobs) {
   }
 }
 
-// Ensures the initial administrator (from configuration, P-07) is on the allowlist. Idempotent.
+// Ensures the initial administrator (P-07) is on the allowlist and the branch catalog (P-01) is
+// loaded, both from configuration. Idempotent.
 module seedJob 'modules/container-job.bicep' = if (deployJobs) {
   name: 'seed-job'
   params: {
@@ -201,7 +209,7 @@ module seedJob 'modules/container-job.bicep' = if (deployJobs) {
     registryServer: registry.outputs.loginServer
     env: backendEnv
     secrets: backendSecrets
-    command: ['python', '-m', 'app.seed_admin']
+    command: ['python', '-m', 'app.seed']
     tags: tags
   }
 }

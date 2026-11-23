@@ -224,7 +224,17 @@ def test_pending_decisions_have_no_invented_defaults() -> None:  # P-07
         assert "readEnvironmentVariable('GOOGLE_CLIENT_ID', '')" in text
 
 
+def test_the_branch_catalog_has_no_invented_default_and_imports_start_off() -> None:  # P-01
+    template = (INFRA / "main.bicep").read_text()
+    assert "param branchCatalog string = ''" in template
+    assert "param importsEnabled bool = false" in template
+    for f in ("main.test.bicepparam", "main.prod.bicepparam"):
+        text = (INFRA / f).read_text()
+        assert "readEnvironmentVariable('BRANCH_CATALOG', '')" in text
+        assert "readEnvironmentVariable('IMPORTS_ENABLED', 'false')" in text
+
+
 def test_initial_admin_is_seeded_by_an_explicit_job(main: dict[str, Any]) -> None:  # BASE-03
     job = module(main, "seed-job")
-    assert param_value(job, "command") == ["python", "-m", "app.seed_admin"]
+    assert param_value(job, "command") == ["python", "-m", "app.seed"]
     assert "Manual" in json.dumps(nested_resources(job))

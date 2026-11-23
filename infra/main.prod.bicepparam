@@ -16,6 +16,8 @@ param googleClientId = readEnvironmentVariable('GOOGLE_CLIENT_ID', '')
 param allowlistIdentifier = readEnvironmentVariable('ALLOWLIST_IDENTIFIER', '')
 param initialAdminEmail = readEnvironmentVariable('INITIAL_ADMIN_EMAIL', '')
 param initialAdminSubject = readEnvironmentVariable('INITIAL_ADMIN_SUBJECT', '')
+param branchCatalog = readEnvironmentVariable('BRANCH_CATALOG', '')
+param importsEnabled = readEnvironmentVariable('IMPORTS_ENABLED', 'false') == 'true'
 param alertEmail = readEnvironmentVariable('ALERT_EMAIL', '')
 
 // Provisional sizing and redundancy (P-05 pending): review before production use.

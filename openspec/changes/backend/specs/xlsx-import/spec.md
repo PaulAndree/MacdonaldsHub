@@ -32,12 +32,26 @@ The system SHALL reject the whole file when it is corrupt, protected, has more t
 - **WHEN** a file has only the three mandatory headers
 - **THEN** it is accepted and its optional values are absent (E-01)
 
-### Requirement: Limits and unresolved structure rules are not invented
-The system SHALL NOT truncate a file silently. Maximum size and row count (P-06), formula cells, extra headers, empty rows and ambiguous or non-existent local times (P-09) SHALL stay unresolved decisions: until each is decided, the behavior that depends on it SHALL be blocked, not defaulted. When a limit is decided and a file exceeds it, the file SHALL be rejected with a stated reason. (P-06, P-09)
+### Requirement: File size limit
+The system SHALL reject a file larger than 10 MB entirely, with that reason, and SHALL NOT truncate any file silently. There SHALL be no row limit other than the size limit. (P-06)
+
+#### Scenario: File over the size limit
+- **WHEN** a file larger than 10 MB is uploaded
+- **THEN** the whole file is rejected with the reason that it exceeds the size limit
+
+### Requirement: A curated file is assumed
+The system SHALL ignore unrecognized extra headers and SHALL skip rows that are completely empty, without an error and without counting them as rows. It SHALL check the mandatory columns in every row, and SHALL accept optional columns as they come under the reading rules of this capability, with no further checks. (P-09)
+
+#### Scenario: Extra column and blank rows
+- **WHEN** a file has an unrecognized extra column and completely empty rows between data rows
+- **THEN** the extra column is ignored and the empty rows are skipped without an error or a count
+
+### Requirement: Formula cells are never evaluated
+The system SHALL NOT evaluate formulas, SHALL NOT use a calculated value as validated data, and SHALL make a row an error, with the reason "celda con fórmula", when any of its cells holds a formula. (P-09)
 
 #### Scenario: Cell holding a formula
-- **WHEN** a mandatory cell holds a formula
-- **THEN** its calculated value is not treated as validated, and no formula is evaluated
+- **WHEN** a row has a formula in a mandatory or an optional cell
+- **THEN** the row is an error and no formula is evaluated
 
 ### Requirement: Row-level validation
 The system SHALL invalidate a row, without stopping the others, when a mandatory value is absent, the provider is not `uber eats`, `just eat` or `glovo` after lowercasing, a supplied branch is not in the catalog, the Order ID is not text, the date or time does not follow the accepted formats, or a supplied amount is not numeric. Each invalid row SHALL carry a reason. An absent branch SHALL be valid and mean "Sin sucursal". (RF-06, E-05, BE-14)

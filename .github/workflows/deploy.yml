@@ -59,6 +59,9 @@ jobs:
       INITIAL_ADMIN_EMAIL: ${{ vars.INITIAL_ADMIN_EMAIL }}
       INITIAL_ADMIN_SUBJECT: ${{ vars.INITIAL_ADMIN_SUBJECT }}
       ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+      # Names of the branches (P-01) and the switch that turns imports on (needs the catalog).
+      BRANCH_CATALOG: ${{ vars.BRANCH_CATALOG }}
+      IMPORTS_ENABLED: ${{ vars.IMPORTS_ENABLED }}
     steps:
       - uses: actions/checkout@v4
 

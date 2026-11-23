@@ -27,7 +27,7 @@ Constraints that shape everything: the unique key is provider + Order ID; amount
 ### D2. XLSX is read from the raw package, not through a spreadsheet library's numbers
 A small reader opens the `.xlsx` ZIP, streams the single worksheet XML and keeps each numeric cell's **raw text** (`<v>12.345</v>`) to build a `Decimal`. A numeric cell is told from a text cell by the cell type, and a date cell from a number by the style's number format. It rejects, with a stated reason: encrypted files (not a ZIP), corrupt packages, more than one sheet, and unsafe archives (entry-size and compression-ratio guards). It never evaluates a formula; a formula cell is reported as such (P-09). XML is parsed with a hardened parser.
 *Alternatives:* `openpyxl` read-only returns floats for numeric cells, which loses the source digits and breaks RNF-13 and BE-17; `pandas` is heavier and also converts. A custom reader is about a few hundred lines and fully testable with synthetic files.
-*Risk:* edge cases of the format (shared strings, 1904 date system, inline strings). → Mitigation: tests per case and an anonymized sample (P-06) before closing phase 2.
+*Risk:* edge cases of the format (shared strings, 1904 date system, inline strings). → Mitigation: tests per case with synthetic files; no anonymized sample exists (P-06), so a real file from the administrator is checked as soon as one is available.
 
 ### D3. Money is `NUMERIC` without scale and `Decimal` in code
 Amount columns are `NUMERIC` with no precision or scale restriction. The API serializes them as strings. The stored value keeps the digits of the source, and comparison for classification is by decimal value, so `12.50` and `12.5` are equal in a comparison (RN-02) while each keeps its own digits when shown. No float appears on any path.
@@ -47,7 +47,7 @@ Migrations are tested up and down on a real PostgreSQL. Downgrades of business t
 It takes the parsed rows and a lookup of existing incidents by key, and returns one class and reason per row. Order of evaluation: errors first; then group valid rows by key; a group with any difference in a relevant field, or a difference against the existing incident, is En conflicto for every row; identical repetitions, or a match with equal fields, are Duplicada; the rest are Nueva. It is written test-first with the scenarios E-03 to E-05, BE-01, BE-06, BE-13, BE-17. The existing-incident lookup is a single set query per batch, not one per row.
 
 ### D7. The worker discovers work from persisted batch state
-The batch state is the job queue: the worker, as lock owner, selects batches in `uploaded` (or `processing` with a stale lease) with `FOR UPDATE SKIP LOCKED`, sets `processing` with a lease timestamp, reads the file from Blob, verifies it, computes the SHA-256, writes staging and sets `in_review` or `rejected`. After a restart the stale lease makes the batch eligible again, and the processing is idempotent (it rewrites that batch's staging in one transaction), so BE-09 holds. No broker and no second service (ADR-13 unchanged).
+The batch state is the job queue: the worker, as lock owner, selects batches in `processing` (set when the browser reports the upload) whose lease is empty or expired with `FOR UPDATE SKIP LOCKED`, sets a lease timestamp on the one it takes, reads the file from Blob, verifies it, computes the SHA-256, writes staging and sets `in_review` or `rejected`. After a restart the stale lease makes the batch eligible again, and the processing is idempotent (it rewrites that batch's staging in one transaction), so BE-09 holds. No broker and no second service (ADR-13 unchanged).
 
 ### D8. Confirmation is one transaction with the batch row as the lock
 `SELECT … FROM batch WHERE id = :id FOR UPDATE` serializes confirmations and cleanup on the same batch. Inside it: check state and the reviewed hash; if already `confirmed`, return the stored result; revalidate rows against current incidents; `INSERT … ON CONFLICT (provider_id, order_id) DO NOTHING RETURNING` to detect keys that appeared meanwhile (those rows become excluded results); insert outbox records for the new Uber Eats and Just Eat incidents; write history, the result JSON, the confirmed state and the audit record. Any exception rolls back everything. The recipient and template version in force are copied into each outbox row. Nothing sends.
@@ -74,11 +74,11 @@ The standard build already calls `/api/...`; phase 7 verifies each screen agains
 
 ## Risks / Trade-offs
 
-- [Custom XLSX reader misses a spreadsheet feature] → anonymized sample (P-06), per-feature tests, and a clear rejection reason for anything unsupported instead of guessing.
-- [Preview of 300–600 rows or more is slow] → batch inserts, one set query for existing incidents, paging in the API; no truncation, and the file-size limits wait for P-06.
+- [Custom XLSX reader misses a spreadsheet feature] → synthetic files and per-feature tests, and a clear rejection reason for anything unsupported instead of guessing.
+- [Preview of 300–600 rows or more is slow] → batch inserts, one set query for existing incidents, paging in the API; no truncation, and the only limit is 10 MB of file size (P-06).
 - [Confirmation holds a row lock while it writes up to hundreds of rows] → the transaction does no I/O to Blob or mail; hundreds of rows commit in well under a second.
 - [Original copy fails after commit] → batch stays confirmed, copy is retried, discrepancy alerted, cleanup protects the temporary blob.
-- [Decisions still open could block phases] → P-06 and P-09 gate phase 2 behavior, P-12 gates manual-entry email, P-04 blocks phase 6, P-10 gates any Total validation, P-08 gates real data. Each is a visible task gate, not an assumed default.
+- [Decisions still open could block phases] → P-12 gates manual-entry email, P-04 blocks phase 6, P-10 gates any Total validation, P-08 gates real data. Each is a visible task gate, not an assumed default.
 - [Two overlapping revisions run the worker] → the existing advisory lock and `SKIP LOCKED` per row keep one owner; leases make takeover safe.
 
 ## Migration Plan

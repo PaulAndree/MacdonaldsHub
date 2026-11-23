@@ -19,6 +19,8 @@ x-backend-env: &backend-env
   SMTP_PORT: "1025"
   TELEMETRY_EXPORTER: console
   FRONTEND_ORIGIN: http://localhost:3000
+  IMPORTS_ENABLED: ${IMPORTS_ENABLED:-false}
+  BRANCH_CATALOG: ${BRANCH_CATALOG:-}
 
 x-backend-image: &backend-image delivery-hub-backend:local
 

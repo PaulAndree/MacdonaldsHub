@@ -40,4 +40,4 @@ The approved interface (change 1, `frontend`, design `frontend-design-v1`, contr
 - **Contract:** implements contract 0.1.0 as approved. The three email-queue operations are left to change 3.
 - **Dependencies:** an XLSX reading approach that keeps raw numeric text (chosen in `design.md`), a PostgreSQL test harness in CI.
 - **Infrastructure:** no new Azure service. The `confirmed` container already exists with version-level immutability, but `platform-base` granted the application identity no write on it, so phase 3 adds the minimal Bicep role needed for the worker to create (never overwrite or delete) blobs there.
-- **Pending decisions that gate work:** P-06 and P-09 (before phase 2 behavior), P-12 (manual entry email), P-10 (Total relation), P-04 (phase 6), P-08 (before real data), P-05, P-01, P-03. None gets a default invented here.
+- **Pending decisions that gate work:** P-12 (manual entry email), P-10 (Total relation), P-04 (phase 6), P-08 (before real data), P-05, P-01, P-03. None gets a default invented here.

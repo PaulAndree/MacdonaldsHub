@@ -25,14 +25,16 @@ def test_connects_to_real_postgres(engine) -> None:  # type: ignore[no-untyped-d
 
 
 def test_upgrade_downgrade_reupgrade(engine, database_url: str) -> None:  # type: ignore[no-untyped-def]
-    run("upgrade", database_url)
-    assert tables(engine) == {"allowlist_entry", "technical_check"}
+    # The platform tables come from revision 0001; later revisions add the business schema.
+    platform = {"allowlist_entry", "technical_check"}
+    run("upgrade", database_url, "0001")
+    assert tables(engine) == platform
 
     run("downgrade", database_url, "base")
     assert tables(engine) == set()
 
-    run("upgrade", database_url)
-    assert tables(engine) == {"allowlist_entry", "technical_check"}
+    run("upgrade", database_url, "0001")
+    assert tables(engine) == platform
 
 
 def test_role_check_constraint(engine, database_url: str) -> None:  # type: ignore[no-untyped-def]

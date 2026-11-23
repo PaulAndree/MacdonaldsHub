@@ -65,6 +65,31 @@ Outside local, access comes from the allowlist. Seed the initial administrator f
 
 It is idempotent and re-activates the entry if it was disabled.
 
+## Branch catalog and imports
+
+Imports are off until the branch catalog is loaded (RF-06). The real branch names come from the
+administrator (P-01); there is no default list.
+
+```bash
+export BRANCH_CATALOG="name one,name two"   # comma-separated, stored in lowercase
+.venv/bin/python -m app.seed_catalog         # (or `python -m app.seed`, which also seeds the administrator) idempotent; a branch removed from the list is deactivated, never deleted
+export IMPORTS_ENABLED=true                   # the API and the worker refuse to start if the catalog is empty
+```
+
+## Contract test
+
+`tests/unit/test_contract.py` compares the OpenAPI that FastAPI generates with the approved
+`docs/api/openapi.yaml` (ADR-16, BE-18). Every approved operation is either served and identical,
+or listed in `tests/contract/registry.py` (`PENDING` for later phases of this change, `DEFERRED`
+for change 3). When you implement an operation, remove it from that list in the same commit.
+
+## Permissions and audit
+
+The permission matrix is `app/domain/permissions.py`; operations declare what they need with
+`require_permission(...)`. Audit records are written with `Auditor` inside the same transaction as the
+change they describe, and the database refuses to update or delete them. There is no operation to
+consult them: the technical team reads `audit_log` directly.
+
 ## Run the processes
 
 ```bash

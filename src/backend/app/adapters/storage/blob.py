@@ -92,6 +92,9 @@ class BlobStorageService:
             content_type=props.content_settings.content_type,
         )
 
+    def read_blob(self, container: str, blob_name: str) -> bytes:
+        return self._client.get_blob_client(container, blob_name).download_blob().readall()
+
     def delete_blob(self, container: str, blob_name: str) -> None:
         if container == CONFIRMED:
             # Mirrors the container-level immutability Azure enforces; Azurite cannot (P-05).
