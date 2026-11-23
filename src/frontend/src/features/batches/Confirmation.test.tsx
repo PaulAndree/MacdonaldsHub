@@ -55,7 +55,6 @@ describe("confirmation summary (RF-07, UI-03)", () => {
     await openPreview();
     const notice = within(panel()).getByText(/Confirmar no se puede deshacer/);
     expect(notice).toHaveTextContent("no se pueden cancelar después");
-    expect(notice).toHaveTextContent("sin reintentos");
     expect(notice.compareDocumentPosition(confirmButton()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

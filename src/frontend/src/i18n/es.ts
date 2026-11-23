@@ -354,7 +354,6 @@ export const es = {
   confirm: {
     anchor: "Ir a la confirmación",
     title: "Confirmar el lote",
-    //summaryTitle: "Qué ocurrirá al confirmar",
     incidents: "Incidencias que se crearán",
     emails: "Correos que se generarán (Uber Eats y Just Eat)",
     withoutEmail: "Incidencias de Glovo, sin correo",
