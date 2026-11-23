@@ -354,7 +354,7 @@ export const es = {
   confirm: {
     anchor: "Ir a la confirmación",
     title: "Confirmar el lote",
-    summaryTitle: "Qué ocurrirá al confirmar",
+    //summaryTitle: "Qué ocurrirá al confirmar",
     incidents: "Incidencias que se crearán",
     emails: "Correos que se generarán (Uber Eats y Just Eat)",
     withoutEmail: "Incidencias de Glovo, sin correo",
@@ -364,7 +364,7 @@ export const es = {
     templateExample: "Texto de ejemplo: la redacción final está pendiente de decisión.",
     onlyVariable: "El único dato variable del correo es el número de incidencia (Order ID).",
     noUndo:
-      "Confirmar no se puede deshacer. Los correos ya generados no se pueden cancelar después, y cada correo tiene un solo intento, sin reintentos.",
+      "Confirmar no se puede deshacer. Los correos ya generados no se pueden cancelar después.",
     button: (n: number) => (n === 1 ? "Confirmar e importar 1 incidencia" : `Confirmar e importar ${n} incidencias`),
     confirming: "Confirmando…",
     nothingToImport: "No hay filas nuevas que importar. Cancele el lote o corrija el archivo y súbalo de nuevo.",
