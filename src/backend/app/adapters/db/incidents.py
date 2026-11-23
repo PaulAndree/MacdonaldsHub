@@ -97,7 +97,7 @@ class SqlIncidents:
         rows = self._c.execute(
             text(
                 "SELECT at, actor, kind, field, previous, new, reason FROM incident_history "
-                "WHERE incident_id = :id ORDER BY at, id"
+                "WHERE incident_id = :id ORDER BY at, seq"
             ),
             {"id": uuid.UUID(incident_id)},
         )

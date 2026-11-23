@@ -606,3 +606,17 @@ def test_creating_the_email_sends_nothing(seeded) -> None:  # type: ignore[no-un
     httpx.delete(f"{base}/api/v1/messages")
     post(api, "/api/incidents/manual", CORE)
     assert httpx.get(f"{base}/api/v1/messages").json()["total"] == 0
+
+
+def test_entries_written_together_keep_the_order_they_were_written_in(seeded) -> None:  # type: ignore[no-untyped-def]
+    """They share the instant of their transaction, so the order must not depend on it (flaky once)."""
+    api, _ = seeded
+    for n in range(15):
+        glovo = seed(api, "glovo", f"GL-ORDER-{n}")
+        post(api, f"/api/incidents/{glovo}/claim", {"claimDate": "2026-11-21"})
+        history = get(api, f"/api/incidents/{glovo}").json()["history"]
+        assert [(h["kind"], h["field"]) for h in history] == [
+            ("imported", "status"),
+            ("claim", "status"),
+            ("claim", "claimDate"),
+        ]
