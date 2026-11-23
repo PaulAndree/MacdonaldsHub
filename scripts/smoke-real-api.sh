@@ -3,7 +3,8 @@
 # browser uses (change 2, task 7.2). It needs the compose stack running and a CLEAN database:
 #   docker compose up --build -d --wait && scripts/smoke-real-api.sh
 # It imports docs/samples/xlsx/incidencias.xlsx, reviews it, confirms it, and checks what the
-# approved walkthroughs rely on. Nothing is sent: the emails stay pending.
+# approved walkthroughs rely on. The queue starts paused, so nothing is sent until step 8 resumes it
+# (change 3); step 8 waits for the first email only and pauses the queue again.
 set -euo pipefail
 
 BASE="${BASE:-http://localhost:3000}"
@@ -77,7 +78,8 @@ again="$(api -X POST "$BASE/api/batches/$batch/confirm" -H 'Content-Type: applic
 expect "a repeated confirmation returns the stored result" "$(echo "$again" | $JQ -r .alreadyConfirmed)" "true"
 expect "incidents after confirming" "$(api "$BASE/api/incidents" | $JQ -r .total)" "8"
 
-echo "5. Nothing is sent"
+echo "5. Nothing is sent while the queue is paused"
+expect "the queue starts paused" "$(api "$BASE/api/email-queue" | $JQ -r .status.paused)" "true"
 if curl -fsS "$MAILPIT/api/v1/messages" >/tmp/mailpit.json 2>/dev/null; then
   expect "messages captured" "$($JQ -r .total /tmp/mailpit.json)" "0"
 else
@@ -101,6 +103,27 @@ expect "one pending claim" "$(echo "$metrics" | $JQ -r '.pendingClaims | length'
 
 echo "7. Cerrar sesión discards nothing when nothing is pending"
 expect "discarded" "$(api -X POST "$BASE/api/batches/discard-unconfirmed" | $JQ -r .discarded)" "0"
+
+echo "8. Sending: resume, wait for the first email, pause again"
+RECIPIENT="${TEST_RECIPIENT_EMAIL:-destinatario-prueba@example.test}"
+queue="$(api "$BASE/api/email-queue")"
+expect "sending is available" "$(echo "$queue" | $JQ -r .status.sendingAvailable)" "true"
+expect "emails wait" "$(echo "$queue" | $JQ -r .totals.pending)" "8"
+api -X POST "$BASE/api/email-queue/resume" >/dev/null
+sent=0
+for _ in $(seq 1 30); do
+  sent="$(api "$BASE/api/email-queue" | $JQ -r .totals.sent)"
+  [ "$sent" -ge 1 ] && break
+  sleep 2
+done
+api -X POST "$BASE/api/email-queue/pause" >/dev/null
+[ "$sent" -ge 1 ] && pass "the first email was sent" || fail "no email was sent"
+expect "the queue is paused again" "$(api "$BASE/api/email-queue" | $JQ -r .status.paused)" "true"
+if curl -fsS "$MAILPIT/api/v1/messages" >/tmp/mailpit.json 2>/dev/null; then
+  [ "$($JQ -r .total /tmp/mailpit.json)" -ge 1 ] && pass "mail capture holds the message" || fail "mail capture is empty"
+  expect "only the test recipient" \
+    "$($JQ -r --arg r "$RECIPIENT" '[.messages[].To[].Address | select(. != $r)] | length' /tmp/mailpit.json)" "0"
+fi
 
 echo
 echo "All checks passed against the real API."

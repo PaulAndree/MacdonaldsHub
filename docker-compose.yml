@@ -17,6 +17,7 @@ x-backend-env: &backend-env
   MAIL_TRANSPORT: smtp_capture
   SMTP_HOST: mailpit
   SMTP_PORT: "1025"
+  SMTP_FROM: ${SMTP_FROM:-envios@example.test}
   TELEMETRY_EXPORTER: console
   FRONTEND_ORIGIN: http://localhost:3000
   # Local only: imports are on so the whole flow can be tried. The sample branches are test

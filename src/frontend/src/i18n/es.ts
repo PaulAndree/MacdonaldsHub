@@ -472,6 +472,8 @@ export const es = {
       title: "Correos",
       label: "Correos de la cola",
       incident: "Incidencia",
+      batch: "Lote",
+      manualEntry: "Alta manual",
       orderId: "Order ID",
       provider: "Proveedor",
       state: "Estado",
@@ -497,6 +499,8 @@ export const es = {
       title: "No hay correos en la cola",
       text: "Las incidencias de Glovo se reclaman manualmente y no generan correo. Un lote que solo contiene incidencias de Glovo deja la cola vacía.",
     },
+    unavailableTitle: "Envío no disponible",
+    unavailableNote: "Los correos siguen pendientes y no pasan a error por esto. Cuando se pueda enviar, saldrán en cuanto se reanude la cola.",
     changeFailed: "No se pudo cambiar el estado de la cola.",
   },
   errors: {

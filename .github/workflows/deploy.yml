@@ -63,6 +63,13 @@ jobs:
       BRANCH_CATALOG: ${{ vars.BRANCH_CATALOG }}
       IMPORTS_ENABLED: ${{ vars.IMPORTS_ENABLED }}
       TEST_RECIPIENT_EMAIL: ${{ vars.TEST_RECIPIENT_EMAIL }}
+      # The institutional mailbox (P-02). Without SMTP_HOST sending stays unavailable. The password is
+      # the Key Vault secret smtp-password; SMTP_PASSWORD_CONFIGURED=true once it exists.
+      SMTP_HOST: ${{ vars.SMTP_HOST }}
+      SMTP_PORT: ${{ vars.SMTP_PORT }}
+      SMTP_USER: ${{ vars.SMTP_USER }}
+      SMTP_FROM: ${{ vars.SMTP_FROM }}
+      SMTP_PASSWORD_CONFIGURED: ${{ vars.SMTP_PASSWORD_CONFIGURED }}
     steps:
       - uses: actions/checkout@v4
 

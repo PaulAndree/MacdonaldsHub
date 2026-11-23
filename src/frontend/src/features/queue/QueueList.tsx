@@ -25,6 +25,7 @@ export default function QueueList({ items }: { items: QueueEntry[] }) {
         <thead>
           <tr>
             <th scope="col">{t.list.orderId}</th>
+            <th scope="col">{t.list.batch}</th>
             <th scope="col">{t.list.provider}</th>
             <th scope="col">{t.list.state}</th>
             <th scope="col">{t.list.reason}</th>
@@ -39,6 +40,7 @@ export default function QueueList({ items }: { items: QueueEntry[] }) {
               <th scope="row">
                 <Link to={`/incidencias/${entry.incidentId}`}>{entry.orderId}</Link>
               </th>
+              <td>{entry.batchId ?? <span className="unknown">{t.list.manualEntry}</span>}</td>
               <td>{providerName(entry.provider)}</td>
               <td>
                 <span className={`pill ${STYLE[entry.state]}`}>{t.states[entry.state]}</span>

@@ -30,6 +30,15 @@ param importsEnabled bool = false
 
 @description('The only recipient allowed until the real ones exist (P-01). Empty means emails cannot be authorized.')
 param testRecipientEmail string = ''
+
+@description('Mail server of the institutional mailbox (P-02). Empty means sending is unavailable: nothing is claimed and nothing fails.')
+param smtpHost string = ''
+param smtpPort int = 587
+param smtpUser string = ''
+@description('Sender address of the institutional mailbox (P-02).')
+param smtpFrom string = ''
+@description('True once the secret smtp-password exists in Key Vault. The password is only ever a Key Vault reference.')
+param smtpPasswordConfigured bool = false
 param alertEmail string = ''
 
 // Sizing and redundancy are provisional until P-05 sets availability and backup objectives.
@@ -149,13 +158,24 @@ module postgres 'modules/postgres.bicep' = {
 var backendImage = '${registry.outputs.loginServer}/delivery-hub-backend:${imageTag}'
 var frontendImage = '${registry.outputs.loginServer}/delivery-hub-frontend:${imageTag}'
 
-var backendSecrets = [
-  {
-    name: 'appinsights-connection-string'
-    keyVaultUrl: '${keyvault.outputs.vaultUri}secrets/appinsights-connection-string'
-    identity: identity.outputs.backendId
-  }
-]
+var backendSecrets = concat(
+  [
+    {
+      name: 'appinsights-connection-string'
+      keyVaultUrl: '${keyvault.outputs.vaultUri}secrets/appinsights-connection-string'
+      identity: identity.outputs.backendId
+    }
+  ],
+  smtpPasswordConfigured
+    ? [
+        {
+          name: 'smtp-password'
+          keyVaultUrl: '${keyvault.outputs.vaultUri}secrets/smtp-password'
+          identity: identity.outputs.backendId
+        }
+      ]
+    : []
+)
 
 // No DEV_IDENTITY_* variable is ever set here: the development identity cannot run in Azure.
 // The database URL carries no password; the managed identity supplies a token (ADR-15).
@@ -181,7 +201,17 @@ var backendEnv = concat(
   empty(initialAdminSubject) ? [] : [{ name: 'INITIAL_ADMIN_SUBJECT', value: initialAdminSubject }],
   empty(branchCatalog) ? [] : [{ name: 'BRANCH_CATALOG', value: branchCatalog }],
   importsEnabled ? [{ name: 'IMPORTS_ENABLED', value: 'true' }] : [],
-  empty(testRecipientEmail) ? [] : [{ name: 'TEST_RECIPIENT_EMAIL', value: testRecipientEmail }]
+  empty(testRecipientEmail) ? [] : [{ name: 'TEST_RECIPIENT_EMAIL', value: testRecipientEmail }],
+  empty(smtpHost)
+    ? []
+    : [
+        { name: 'SMTP_HOST', value: smtpHost }
+        { name: 'SMTP_PORT', value: string(smtpPort) }
+        { name: 'SMTP_STARTTLS', value: 'true' }
+      ],
+  empty(smtpUser) ? [] : [{ name: 'SMTP_USER', value: smtpUser }],
+  empty(smtpFrom) ? [] : [{ name: 'SMTP_FROM', value: smtpFrom }],
+  smtpPasswordConfigured ? [{ name: 'SMTP_PASSWORD', secretRef: 'smtp-password' }] : []
 )
 
 module migrateJob 'modules/container-job.bicep' = if (deployJobs) {

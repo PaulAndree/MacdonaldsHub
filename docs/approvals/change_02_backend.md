@@ -10,7 +10,7 @@ The approved walkthroughs of `docs/change_01_frontend.md`, repeated with the sta
 docker compose down -v           # a clean database
 docker compose up -d --wait      # frontend, API, worker, PostgreSQL, Azurite and mail capture
 open http://localhost:3000       # the application; the local identity is an administrator
-open http://localhost:8025       # mail capture: it must stay empty, nothing is sent
+open http://localhost:8025       # mail capture: empty until the queue is resumed (UI-07, UI-08)
 ```
 
 With your `.env` the branch catalog is the real one (Palacio de hielo, Hortaleza, Plaza, Bravo, Manoteras, Plenilunio, Ermita). Use the files of `docs/samples/xlsx/`:
@@ -37,7 +37,10 @@ For UI-10 restart the API as a read-only user: `DEV_IDENTITY_ROLE=global_manager
 | UI-11 | Review every row above | Layout, navigation and interaction approved, or adjustments requested | OK | |
 | UI-12 | With an unconfirmed batch, try to upload another file | Upload blocked, pending batch named, options to resume or cancel it | OK | |
 
-**UI-07 and UI-08** (an email ending in Error, pause with a send in progress) need the email sending of change 3 (`email-sending`) and are verified there. The three email-queue operations (`getEmailQueue`, `pauseEmailQueue`, `resumeEmailQueue`) are the ones the contract test lists as deferred.
+| UI-07 | Importar and confirm `incidencias-sucursales-reales.xlsx`, then `TEST_RECIPIENT_EMAIL=otro@example.test docker compose up -d --force-recreate api worker` (the stored recipient is no longer the authorized one), open Cola de envío and press Reanudar | The email ends in Error with its reason ("Destinatario no autorizado: el correo no se envió."), the incident is "Error de envío", there is no retry action and nothing arrives in the mail capture | Pending | To be filled in by the administrator |
+| UI-08 | With pending emails press Reanudar and, while one is being sent, press Pausar | The screen explains that an attempt already started may finish and that no further email starts; after it the queue is paused | Pending | To be filled in by the administrator |
+
+The queue starts paused: the administrator presses Reanudar to send. Emails go out one at a time at least 30 seconds apart and only to the test recipient (P-01). Mail capture is at `http://localhost:8025`.
 
 ## Final check (7.5)
 
@@ -66,9 +69,9 @@ Run on 2026-11-23 on the commit that follows `673a8ad` of the branch `backend`, 
 | P-07 allowlist | Resolved in change 0 (identifier by email) |
 | P-09 formulas, extra headers, empty rows, local times | Decided 2026-11-23 |
 | P-12 manual entry email | Decided 2026-11-23; Uber Eats and Just Eat create a pending email, Glovo none |
-| P-01 real recipients | Open: only the configured test recipient (`TEST_RECIPIENT_EMAIL`) is allowed |
-| P-02 mailbox access | Open; belongs to change 3 |
-| P-03 final email text | Open: the text is the administrator's example, marked as such |
+| P-01 real recipients | Open: only the configured test recipient (`TEST_RECIPIENT_EMAIL`) is allowed; any other stored recipient ends in Error without being sent |
+| P-02 mailbox access | Open: the Azure test environment sends nothing until `SMTP_HOST`, `SMTP_FROM` and the Key Vault secret `smtp-password` are provided; locally the mail capture receives the emails |
+| P-03 final email text | Open: the text is the administrator's example, marked as such; it must be approved before any real send |
 | P-05 retention, cleanup cadence, backup targets | Open: cleanup runs on every worker tick; no retention period is set on the confirmed store |
 | P-08 history of manual claims | Open: needed before real data, to avoid claiming again what was handled by hand |
 | P-10 relation between Total and the other amounts | Open: Total is stored as given and never validated |
@@ -79,4 +82,4 @@ Run on 2026-11-23 on the commit that follows `673a8ad` of the branch `backend`, 
 - Set the GitHub variables `BRANCH_CATALOG`, `IMPORTS_ENABLED` and `TEST_RECIPIENT_EMAIL` of the test environment; imports stay off until the catalog is set.
 - The role assignment that gives the backend write on the `confirmed` container carries a condition that removes delete. It is checked by the template tests, but only a deployment shows it applied.
 - A file over 10 MB, or an unsafe archive, is rejected with the contract's reason `corrupt_or_protected_file` and a detail saying why: a dedicated reason would need a new contract version.
-- The email queue operations and UI-07 and UI-08 belong to change 3.
+- The email queue operations are implemented in change 3; UI-07 and UI-08 are verified there.

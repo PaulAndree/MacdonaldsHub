@@ -44,7 +44,19 @@ On 2026-11-23, while implementing change 2 (`backend`), the administrator decide
 - **Date:** 2026-11-23
 - **Commit:** the one that contains this record.
 
-<!-- approval: contractVersion=0.1.1 contractSha256=900c20ed90d12f6b1ae5b2fe263936b679bfe6f503bbdfde4c1fe22542526cdf -->
+Recorded values of this approval: contractVersion=0.1.1, contractSha256=900c20ed90d12f6b1ae5b2fe263936b679bfe6f503bbdfde4c1fe22542526cdf. Superseded by the approval of 0.1.2 below.
+
+## Approval of contract 0.1.2
+
+On 2026-11-23, while implementing change 3 (`email-sending`), the administrator approved version 0.1.2 of the contract and the interface texts that follow from it. Nothing else changed.
+
+- **Queue entry without batch:** the `batchId` of an email may be null, because the email of a manual entry belongs to no batch. The Correo screen shows it as "Alta manual" in a new "Lote" column.
+- **Sending availability:** the queue status has `sendingAvailable` and `unavailableReason`. When nothing can be sent (no mail server, sender or test recipient, or a production environment without real recipients) the screen says why, and says that the emails stay pending and do not turn into errors.
+- **Contract version:** 0.1.2.
+- **Date:** 2026-11-23
+- **Commit:** the one that contains this record.
+
+<!-- approval: contractVersion=0.1.2 contractSha256=0f5c7e07fee3dc92a73998cd12040ac7a299879bec35a9de5140066392821e31 -->
 
 ## Final check (9.3)
 

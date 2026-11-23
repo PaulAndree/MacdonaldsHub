@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     mail_transport: Literal["smtp_capture", "smtp"]
     smtp_host: str | None = None
     smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_password: SecretStr | None = None  # from the secret store in Azure
+    smtp_from: str | None = None  # the institutional sender
+    smtp_starttls: bool = False
 
     telemetry_exporter: Literal["console", "azure_monitor"]
     applicationinsights_connection_string: SecretStr | None = None

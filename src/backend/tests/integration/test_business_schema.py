@@ -20,6 +20,7 @@ BUSINESS = {
     "outbox",
     "audit_log",
     "setting",
+    "mail_control",
 }
 
 
