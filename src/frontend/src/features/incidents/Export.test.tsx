@@ -51,11 +51,17 @@ function captureDownload() {
     saved,
     async sheet() {
       await waitFor(() => expect(saved).toHaveLength(1));
-      const bytes = await new Promise<Uint8Array>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
-        reader.readAsArrayBuffer(saved[0]!.blob);
-      });
+      const blob = saved[0]!.blob;
+      // `response.blob()` returns Node's Blob (which can read itself) on some Node versions and jsdom's
+      // (which cannot) on others, so both are handled; CI and local machines do not run the same Node.
+      const bytes =
+        typeof blob.arrayBuffer === "function"
+          ? new Uint8Array(await blob.arrayBuffer())
+          : await new Promise<Uint8Array>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+              reader.readAsArrayBuffer(blob);
+            });
       const files = readStoredZip(bytes);
       return files["xl/worksheets/sheet1.xml"]!;
     },
