@@ -112,6 +112,8 @@ jobs:
           curl -fsS localhost:3000/healthz
           curl -fsS localhost:3000/api/technical/me
           curl -fsS -X POST localhost:3000/api/technical/check
+      - name: Real API flow through the standard frontend (import, review, confirm, dashboard)
+        run: scripts/smoke-real-api.sh
       - name: Logs on failure
         if: failure()
         run: docker compose logs --no-color | tail -200
