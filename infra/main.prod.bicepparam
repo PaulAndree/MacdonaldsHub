@@ -19,6 +19,11 @@ param initialAdminSubject = readEnvironmentVariable('INITIAL_ADMIN_SUBJECT', '')
 param branchCatalog = readEnvironmentVariable('BRANCH_CATALOG', '')
 param importsEnabled = readEnvironmentVariable('IMPORTS_ENABLED', 'false') == 'true'
 param testRecipientEmail = readEnvironmentVariable('TEST_RECIPIENT_EMAIL', '')
+param smtpHost = readEnvironmentVariable('SMTP_HOST', '')
+param smtpPort = empty(readEnvironmentVariable('SMTP_PORT', '')) ? 587 : int(readEnvironmentVariable('SMTP_PORT', ''))
+param smtpUser = readEnvironmentVariable('SMTP_USER', '')
+param smtpFrom = readEnvironmentVariable('SMTP_FROM', '')
+param smtpPasswordConfigured = readEnvironmentVariable('SMTP_PASSWORD_CONFIGURED', 'false') == 'true'
 param alertEmail = readEnvironmentVariable('ALERT_EMAIL', '')
 
 // Provisional sizing and redundancy (P-05 pending): review before production use.

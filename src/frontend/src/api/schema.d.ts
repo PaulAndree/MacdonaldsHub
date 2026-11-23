@@ -876,6 +876,14 @@ export interface components {
             pausedAt: components["schemas"]["Timestamp"] | null;
             /** @description Attempts started and not finished. */
             inFlight: number;
+            /**
+             * @description False when nothing can be sent (no mail server, sender or test recipient configured, or a
+             *     production environment without real recipients). The emails stay pending and none turns
+             *     into an error because of it.
+             */
+            sendingAvailable: boolean;
+            /** @description Why sending is unavailable, in Spanish, or `null` when it is available. */
+            unavailableReason: string | null;
         };
         EmailTotals: {
             pending: number;
@@ -887,7 +895,8 @@ export interface components {
         QueueEntry: {
             id: string;
             incidentId: string;
-            batchId: string;
+            /** @description The batch that created the email, or `null` for the email of a manual entry. */
+            batchId: string | null;
             orderId: string;
             provider: components["schemas"]["Provider"];
             state: components["schemas"]["EmailState"];

@@ -24,6 +24,15 @@ export default function QueueControl({ status }: { status: QueueStatus }) {
   return (
     <section className="card" aria-labelledby="queue-control">
       <h2 id="queue-control">{status.paused ? t.paused : t.running}</h2>
+      {!status.sendingAvailable && (
+        <div className="notice notice--warning" role="status">
+          <p>
+            <strong>{t.unavailableTitle}</strong>
+          </p>
+          {status.unavailableReason && <p>{status.unavailableReason}</p>}
+          <p>{t.unavailableNote}</p>
+        </div>
+      )}
       {status.paused && <PausedState />}
       {status.paused && status.pausedAt && <p>{t.pausedSince(formatTimestamp(status.pausedAt))}</p>}
       {status.inFlight > 0 && (

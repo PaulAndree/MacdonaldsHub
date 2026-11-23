@@ -127,3 +127,46 @@ describe("pause and resume (UI-08)", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 });
+
+describe("manual entries and unavailable sending (contract 0.1.2)", () => {
+  type QueueBody = {
+    status: { sendingAvailable: boolean; unavailableReason: string | null };
+    items: { batchId: string | null }[];
+  };
+  async function view(change: (body: QueueBody) => void) {
+    const { example } = await import("../../example/contract");
+    const body = example<QueueBody>("getEmailQueue", 200, "running");
+    change(body);
+    server.use(http.get("*/api/email-queue", () => HttpResponse.json(body)));
+  }
+
+  it("shows the email of a manual entry with no batch as Alta manual", async () => {
+    await view((body) => {
+      body.items[4].batchId = null;
+    });
+    show();
+    const row = (await screen.findByRole("link", { name: "JE-44101" })).closest("tr") as HTMLElement;
+    expect(within(row).getByText(t.list.manualEntry)).toBeInTheDocument();
+    const other = screen.getByRole("link", { name: "UE-098001" }).closest("tr") as HTMLElement;
+    expect(within(other).getByText("lote-0005")).toBeInTheDocument();
+  });
+
+  it("says why nothing is sent, and does not present the pending emails as errors", async () => {
+    await view((body) => {
+      body.status.sendingAvailable = false;
+      body.status.unavailableReason = "No hay un servidor de correo configurado.";
+    });
+    show();
+    expect(await screen.findByText(t.unavailableTitle)).toBeInTheDocument();
+    expect(screen.getByText("No hay un servidor de correo configurado.")).toBeInTheDocument();
+    expect(screen.getByText(t.unavailableNote)).toBeInTheDocument();
+    const scope = await totals();
+    expect(kpi(scope, t.states.pending)).toBe("1"); // unchanged: unavailability changes no email
+  });
+
+  it("shows no notice when sending is available", async () => {
+    show();
+    await totals();
+    expect(screen.queryByText(t.unavailableTitle)).not.toBeInTheDocument();
+  });
+});

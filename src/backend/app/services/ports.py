@@ -77,8 +77,31 @@ class StorageService(Protocol):
     def delete_blob(self, container: str, blob_name: str) -> None: ...
 
 
+@dataclass(frozen=True)
+class OutgoingEmail:
+    sender: str
+    recipient: str
+    subject: str
+    body: str
+
+
+class MailRefused(Exception):
+    """The message was not handed over (no connection, refused sender or recipient, rejected data).
+
+    Nothing was accepted, so the attempt ends in Error of kind send failed. `str(exc)` is the
+    reason shown to the user.
+    """
+
+
+class MailUnverified(Exception):
+    """The message may have been handed over but the outcome is unknown (cut or timed out while
+    sending the data). The attempt ends in Error of kind unverified result and is never repeated."""
+
+
 class MailTransport(Protocol):
-    """Outgoing mail transport. Sending is implemented in a later change."""
+    def send(self, email: OutgoingEmail) -> None:
+        """Send once. Raises MailRefused or MailUnverified; returns when the service accepted it."""
+        ...
 
 
 class TelemetryExporter(Protocol):

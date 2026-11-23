@@ -95,3 +95,7 @@ Verified: Bicep build and lint, offline template tests (including mutation check
 `what-if` of all three stages against the test resource group. **Not yet verified:** an actual
 deployment, the documented deploy commands end to end, Easy Auth, and the Azure-side checks in
 tasks 11.3 to 11.7 of the change.
+
+## Institutional mailbox (P-02, change 3)
+
+Sending is optional per environment. Set the GitHub variables `SMTP_HOST`, `SMTP_PORT` (587 by default, STARTTLS), `SMTP_USER` and `SMTP_FROM`, store the password as the Key Vault secret `smtp-password` and then set `SMTP_PASSWORD_CONFIGURED=true`. Without `SMTP_HOST` the queue reports "sending unavailable", nothing is claimed and no email turns into an error. The password is never a template parameter: the apps read it through a Key Vault reference.

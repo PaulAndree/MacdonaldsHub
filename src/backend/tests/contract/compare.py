@@ -78,7 +78,10 @@ def canon(node: Any, doc: Json) -> Any:
     for key, value in node.items():
         if key == "type" and isinstance(value, list):
             out[key] = sorted(value)
-        elif key in ("enum", "required"):
+        elif key == "enum":
+            # `null` listed in an enum of a nullable type is the same as the nullable type.
+            out[key] = sorted((v for v in value if v is not None), key=str)
+        elif key == "required":
             out[key] = sorted(value, key=str)
         elif key == "properties":
             out[key] = {name: canon(sub, doc) for name, sub in value.items()}

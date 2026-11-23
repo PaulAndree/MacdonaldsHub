@@ -10,6 +10,7 @@ from app.adapters.db.allowlist import SqlAllowlistRepository
 from app.adapters.db.engine import make_engine, ping
 from app.adapters.registry import default_registry
 from app.api.batches import router as batches_router
+from app.api.email_queue import router as email_queue_router
 from app.api.incidents import router as incidents_router
 from app.api.metrics import router as metrics_router
 from app.api.security import (
@@ -63,6 +64,7 @@ def build_app(
     app.include_router(batches_router)
     app.include_router(incidents_router)
     app.include_router(metrics_router)
+    app.include_router(email_queue_router)
     app.include_router(technical_router)
     return app
 

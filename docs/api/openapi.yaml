@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Delivery Hub API contract
-  version: 0.1.1
+  version: 0.1.2
   summary: Operations the Delivery Hub interface needs from the backend.
   description: |
     Versioned contract between the frontend and the backend (ADR-16). Change 1 (`frontend`) uses it
@@ -1110,7 +1110,7 @@ paths:
                 running:
                   summary: Emails in every state, one failed and one unverifiable
                   value:
-                    status: { paused: false, pausedAt: null, inFlight: 1 }
+                    status: { paused: false, pausedAt: null, inFlight: 1, sendingAvailable: true, unavailableReason: null }
                     minIntervalSeconds: 30
                     attemptsPerEmail: 1
                     nextEligibleAt: '2026-11-22T12:00:30Z'
@@ -1129,7 +1129,7 @@ paths:
                 paused:
                   summary: Queue paused while one attempt is still finishing
                   value:
-                    status: { paused: true, pausedAt: '2026-11-22T12:01:00Z', inFlight: 1 }
+                    status: { paused: true, pausedAt: '2026-11-22T12:01:00Z', inFlight: 1, sendingAvailable: true, unavailableReason: null }
                     minIntervalSeconds: 30
                     attemptsPerEmail: 1
                     nextEligibleAt: null
@@ -1147,7 +1147,7 @@ paths:
                 completedWithErrors:
                   summary: A completed batch with both Sent and Error
                   value:
-                    status: { paused: false, pausedAt: null, inFlight: 0 }
+                    status: { paused: false, pausedAt: null, inFlight: 0, sendingAvailable: true, unavailableReason: null }
                     minIntervalSeconds: 30
                     attemptsPerEmail: 1
                     nextEligibleAt: null
@@ -1161,7 +1161,7 @@ paths:
                 glovoOnlyBatch:
                   summary: A batch with only Glovo incidents has no emails
                   value:
-                    status: { paused: false, pausedAt: null, inFlight: 0 }
+                    status: { paused: false, pausedAt: null, inFlight: 0, sendingAvailable: true, unavailableReason: null }
                     minIntervalSeconds: 30
                     attemptsPerEmail: 1
                     nextEligibleAt: null
@@ -1191,7 +1191,7 @@ paths:
               examples:
                 pausedWithAttemptInProgress:
                   summary: Paused while one attempt is still running
-                  value: { paused: true, pausedAt: '2026-11-22T12:01:00Z', inFlight: 1 }
+                  value: { paused: true, pausedAt: '2026-11-22T12:01:00Z', inFlight: 1, sendingAvailable: true, unavailableReason: null }
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -1212,7 +1212,7 @@ paths:
               examples:
                 resumed:
                   summary: Queue running
-                  value: { paused: false, pausedAt: null, inFlight: 0 }
+                  value: { paused: false, pausedAt: null, inFlight: 0, sendingAvailable: true, unavailableReason: null }
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -1921,7 +1921,7 @@ components:
             $ref: '#/components/schemas/Branch'
     QueueStatus:
       type: object
-      required: [paused, pausedAt, inFlight]
+      required: [paused, pausedAt, inFlight, sendingAvailable, unavailableReason]
       properties:
         paused:
           type: boolean
@@ -1934,6 +1934,15 @@ components:
           type: integer
           minimum: 0
           description: Attempts started and not finished.
+        sendingAvailable:
+          type: boolean
+          description: |
+            False when nothing can be sent (no mail server, sender or test recipient configured, or a
+            production environment without real recipients). The emails stay pending and none turns
+            into an error because of it.
+        unavailableReason:
+          type: [string, 'null']
+          description: Why sending is unavailable, in Spanish, or `null` when it is available.
     EmailTotals:
       type: object
       required: [pending, sending, sent, error]
@@ -1960,7 +1969,8 @@ components:
         incidentId:
           type: string
         batchId:
-          type: string
+          type: [string, 'null']
+          description: The batch that created the email, or `null` for the email of a manual entry.
         orderId:
           type: string
         provider:

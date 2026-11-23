@@ -8,8 +8,8 @@ this change on purpose (design D13). An operation in neither list must be served
 # Operation ids of docs/api/openapi.yaml still to implement in this change, with their phase.
 PENDING: dict[str, int] = {}
 
-# Change 3 (email-sending) serves the email queue.
-DEFERRED: frozenset[str] = frozenset({"getEmailQueue", "pauseEmailQueue", "resumeEmailQueue"})
+# Nothing is deferred any more: change 3 (email-sending) serves the email queue.
+DEFERRED: frozenset[str] = frozenset()
 
 # Not part of the contract: platform-base technical operations without a user-facing screen.
 NOT_IN_CONTRACT_PREFIXES: tuple[str, ...] = ("/api/technical", "/healthz", "/readyz")

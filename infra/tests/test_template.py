@@ -254,3 +254,20 @@ def test_initial_admin_is_seeded_by_an_explicit_job(main: dict[str, Any]) -> Non
     job = module(main, "seed-job")
     assert param_value(job, "command") == ["python", "-m", "app.seed"]
     assert "Manual" in json.dumps(nested_resources(job))
+
+
+def test_the_mailbox_is_optional_and_its_password_is_only_a_key_vault_reference(main: dict[str, Any]) -> None:  # P-02
+    template = (INFRA / "main.bicep").read_text()
+    # No host, sender or password by default: an environment without a mailbox stays unavailable.
+    assert "param smtpHost string = ''" in template
+    assert "param smtpFrom string = ''" in template
+    assert "param smtpPasswordConfigured bool = false" in template
+    for f in ("main.test.bicepparam", "main.prod.bicepparam"):
+        text = (INFRA / f).read_text()
+        for name in ("SMTP_HOST", "SMTP_USER", "SMTP_FROM"):
+            assert f"readEnvironmentVariable('{name}', '')" in text
+        assert "readEnvironmentVariable('SMTP_PASSWORD_CONFIGURED', 'false')" in text
+    text = all_text(main)
+    assert "secrets/smtp-password" in text  # a reference, never a value
+    assert "SMTP_PASSWORD" in text and "smtp-password" in text
+    assert "param smtpPassword " not in template  # no parameter can carry the password itself

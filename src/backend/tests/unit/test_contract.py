@@ -72,8 +72,8 @@ def test_the_lists_only_name_operations_of_the_contract(approved) -> None:  # ty
     assert (set(PENDING) | DEFERRED) <= wanted
 
 
-def test_the_email_queue_belongs_to_change_3(approved) -> None:  # type: ignore[no-untyped-def]
-    assert DEFERRED == {"getEmailQueue", "pauseEmailQueue", "resumeEmailQueue"}
+def test_no_operation_of_the_contract_remains_deferred() -> None:
+    assert DEFERRED == frozenset()
 
 
 def test_the_api_serves_nothing_the_contract_does_not_define(approved, generated) -> None:  # type: ignore[no-untyped-def]
