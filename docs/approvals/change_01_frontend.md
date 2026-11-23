@@ -23,7 +23,16 @@ Walkthroughs UI-01 to UI-12 from `docs/change_01_frontend.md`, run against the d
 
 ## Approval (UI-11)
 
-Pending. Filled in only after the administrator approves every row. It must name: the design version (git tag), the contract `info.version`, the commit and the date, and add the line `<!-- approval: contractVersion=... contractSha256=... -->` (values from `npm run approval:hash`).
+The administrator reviewed the twelve walkthroughs above in the deployed example build and approved the layout, navigation, flows, messages and actions. No adjustments were requested.
+
+- **Design version (git tag):** `frontend-design-v1`
+- **Contract `info.version`:** 0.1.0
+- **Approved commit:** 3c438d1
+- **Date:** 2026-11-23
+
+<!-- approval: contractVersion=0.1.0 contractSha256=c993ba648f20bb1c83aed5dd29da37cdab838d098324e4514b317a8b23793b8e -->
+
+Any later change to `docs/api/openapi.yaml` makes `npm run approval:check` (and CI) fail until a new approval is recorded here.
 
 ## Final check (9.3)
 
