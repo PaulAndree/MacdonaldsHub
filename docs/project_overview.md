@@ -140,10 +140,10 @@ Son las únicas cuatro fuentes de cambios. El frontend se aprueba antes de imple
 | P-03 | Asunto y texto de plantilla; inclusión de descripción libre; el correo solo incluye el número de incidencia (sin importes ni descripción) |
 | P-04 | Fórmulas temporales, filtros, antigüedad y tratamiento de importes incompletos |
 | P-05 | Retención de originales confirmados, objetivos de disponibilidad, backup/restauración y cadencia de limpieza |
-| P-06 | Límites máximos XLSX y muestra anonimizada de entrada |
+| P-06 | Límites máximos XLSX y muestra anonimizada de entrada. Resuelto en parte: 10 MB como tamaño máximo, sin límite de filas aparte; sin muestra anonimizada, se usan archivos sintéticos |
 | P-07 | Habilitación del gerente global, valores e identificador estable de la allowlist |
 | P-08 | Incorporación del histórico de reclamaciones manuales antes de usar datos reales |
-| P-09 | Celdas fórmula, encabezados adicionales, filas vacías y horas locales inexistentes o ambiguas por cambio horario, sin ampliar las normalizaciones aprobadas. Resueltos: fecha/hora y Order ID (ver cambio 2) |
+| P-09 | Resuelto (ver cambio 2): archivo supuesto curado; fórmulas = error de fila; encabezados adicionales ignorados; filas vacías omitidas; fecha/hora y Order ID; la hora local se conserva sin convertir |
 | P-10 | Si debe existir relación matemática entre Total, Importe a reclamar y Costos de proveedor |
 | P-11 | Vía externa de reclamación Glovo, protección de datos libres y obligaciones adicionales |
 | P-12 | Si el alta manual genera correo; siempre requiere confirmación antes de crear la incidencia |

@@ -49,6 +49,21 @@ class Settings(BaseSettings):
     telemetry_exporter: Literal["console", "azure_monitor"]
     applicationinsights_connection_string: SecretStr | None = None
 
+    # Imports stay off until the catalog of branches is loaded (RF-06, P-01). The real branch names
+    # come from the administrator through configuration; there is no default list.
+    imports_enabled: bool = False
+    # The only recipient allowed until the real ones are defined (P-01). No default on purpose.
+    test_recipient_email: str | None = None
+    branch_catalog: str | None = None
+
+    @property
+    def branch_names(self) -> tuple[str, ...]:
+        """The configured branches, lowercased (as in the XLSX), without blanks or repeats."""
+        if not self.branch_catalog:
+            return ()
+        names = (item.strip().lower() for item in self.branch_catalog.split(","))
+        return tuple(dict.fromkeys(name for name in names if name))
+
     @property
     def initial_admin_identifier(self) -> str | None:
         if self.allowlist_identifier == "sub":

@@ -1,8 +1,10 @@
 // Storage account with the `uploads` and `confirmed` containers and CORS (ADR-14).
 // No shared keys and no public access: the API signs user-delegation SAS with its managed
 // identity. `confirmed` is created with version-level immutability enabled so a retention policy
-// can be applied once P-05 fixes the period; no retention period is invented here, and no
-// application identity is granted delete or write on `confirmed` in this change.
+// can be applied once P-05 fixes the period; no retention period is invented here.
+// The backend identity may read `confirmed` and write to it (the worker copies each confirmed
+// original there), but a condition on its role assignment forbids deleting blobs. The copy is
+// created without overwrite; once P-05 sets a retention period, immutability also protects it.
 param location string
 param storageName string
 param skuName string
@@ -108,6 +110,20 @@ resource confirmedReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
     principalId: backendPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', blobDataReaderRoleId)
+  }
+}
+
+// The worker copies the confirmed original here after the confirmation commits (ADR-14). The
+// condition removes the delete action, so no identity of the application can delete a blob.
+resource confirmedWriter 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(confirmed.id, backendPrincipalId, blobDataContributorRoleId)
+  scope: confirmed
+  properties: {
+    principalId: backendPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', blobDataContributorRoleId)
+    conditionVersion: '2.0'
+    condition: '(!(ActionMatches{\'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/delete\'}))'
   }
 }
 

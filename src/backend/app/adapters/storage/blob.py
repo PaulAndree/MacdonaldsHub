@@ -8,7 +8,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from urllib.parse import quote
 
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.blob import (
     BlobSasPermissions,
     BlobServiceClient,
@@ -91,6 +91,16 @@ class BlobStorageService:
             etag=props.etag,
             content_type=props.content_settings.content_type,
         )
+
+    def read_blob(self, container: str, blob_name: str) -> bytes:
+        return self._client.get_blob_client(container, blob_name).download_blob().readall()
+
+    def write_new_blob(self, container: str, blob_name: str, data: bytes) -> bool:
+        try:
+            self._client.get_blob_client(container, blob_name).upload_blob(data, overwrite=False)
+        except ResourceExistsError:
+            return False
+        return True
 
     def delete_blob(self, container: str, blob_name: str) -> None:
         if container == CONFIRMED:

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.domain.roles import Role
 
@@ -68,6 +68,12 @@ class StorageService(Protocol):
 
     def get_blob_info(self, container: str, blob_name: str) -> BlobInfo | None: ...
 
+    def read_blob(self, container: str, blob_name: str) -> bytes: ...
+
+    def write_new_blob(self, container: str, blob_name: str, data: bytes) -> bool:
+        """Create a blob, never replacing one: False when it already exists."""
+        ...
+
     def delete_blob(self, container: str, blob_name: str) -> None: ...
 
 
@@ -77,3 +83,22 @@ class MailTransport(Protocol):
 
 class TelemetryExporter(Protocol):
     def configure(self, service_name: str) -> None: ...
+
+
+@dataclass(frozen=True)
+class AuditEntry:
+    """One audit record (RNF-05): who did what to which object, when, and how it ended."""
+
+    actor: str  # the user's identifier, or "system:<task>" for worker actions
+    at: datetime  # always a UTC instant
+    operation: str
+    object_type: str
+    object_id: str | None
+    outcome: str  # "success" or "failure"
+    details: dict[str, Any] | None = None
+
+
+class AuditLog(Protocol):
+    """Appends records. It can only add: there is no operation to edit or remove one (RF-19)."""
+
+    def record(self, entry: AuditEntry) -> None: ...
