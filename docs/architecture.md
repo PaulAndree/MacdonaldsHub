@@ -181,7 +181,7 @@ El intervalo mínimo de 30 s es global al remitente entre inicios de intentos, i
 
 Remitente institucional; acceso pendiente P-02. Plantilla única más order ID, asunto/cuerpo pendientes P-03. No incorporar descripción libre sin decisión explícita. Envío real requiere destinatarios, plantilla y configuración validados y activación explícita del administrador.
 
-Las métricas separan correo y Glovo y registran importes recuperados explícitos. Los importes desconocidos no son cero. Criterios temporales y agregación con datos incompletos [por definir, P-04]. Agregaciones en PostgreSQL, sin almacén analítico adicional.
+Las métricas separan correo y Glovo y registran importes recuperados explícitos. Los importes desconocidos no son cero. Criterios de fecha, tasa, antigüedad y datos incompletos resueltos en el cambio 2 (P-04). Agregaciones en PostgreSQL, sin almacén analítico adicional.
 
 ## 10. Requisitos no funcionales
 

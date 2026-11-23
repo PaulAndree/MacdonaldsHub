@@ -19,8 +19,11 @@ x-backend-env: &backend-env
   SMTP_PORT: "1025"
   TELEMETRY_EXPORTER: console
   FRONTEND_ORIGIN: http://localhost:3000
-  IMPORTS_ENABLED: ${IMPORTS_ENABLED:-false}
-  BRANCH_CATALOG: ${BRANCH_CATALOG:-}
+  # Local only: imports are on so the whole flow can be tried. The sample branches are test
+  # fixtures; put the real ones in .env (BRANCH_CATALOG). The recipient is a throwaway address.
+  IMPORTS_ENABLED: ${IMPORTS_ENABLED:-true}
+  BRANCH_CATALOG: ${BRANCH_CATALOG:-centro,norte,sur}
+  TEST_RECIPIENT_EMAIL: ${TEST_RECIPIENT_EMAIL:-destinatario-prueba@example.test}
 
 x-backend-image: &backend-image delivery-hub-backend:local
 
@@ -62,7 +65,8 @@ services:
   migrate:
     image: *backend-image
     build: src/backend
-    command: ["python", "-m", "app.migrate", "upgrade"]
+    # Migrations first, then the configured administrator and branch catalog (both idempotent).
+    command: ["sh", "-c", "python -m app.migrate upgrade && python -m app.seed"]
     environment: *backend-env
     depends_on:
       postgres:

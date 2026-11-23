@@ -7,7 +7,7 @@ import { parseAmountInput } from "../../ui/amount";
 import { parseDateField, parseTimeField } from "../../ui/dates";
 import { DateInput, TimeInput } from "../../ui/DateInput";
 import PageHeader from "../../ui/PageHeader";
-import { ErrorState, PendingMarker } from "../../ui/StateViews";
+import { ErrorState } from "../../ui/StateViews";
 import { useAction } from "../../ui/useAction";
 import { AmountText, BranchText, IncidentDateText, OptionalText, providerName } from "../../ui/values";
 import ComparisonTable from "../batches/ComparisonTable";
@@ -160,7 +160,7 @@ export default function ManualEntryScreen() {
             <dt>{es.incidents.fields.description}</dt>
             <dd><OptionalText value={core.description} empty={es.values.noDescription} /></dd>
           </dl>
-          <p className="muted">{t.emailTitle}: {t.emailText} <PendingMarker id="P-12" /></p>
+          <p className="muted">{core.provider === "glovo" ? t.emailNone : t.emailWill}</p>
           {save.error != null && (conflictOnSave ? <p className="notice notice--danger" role="alert">{t.raced} {save.error instanceof ApiError ? save.error.message : ""}</p> : <ErrorState mutation error={save.error} />)}
           <p>
             <button type="button" disabled={save.pending} onClick={() => confirm(core)}>
@@ -222,7 +222,7 @@ export default function ManualEntryScreen() {
         <Field id={`${id}-description`} label={t.description}>
           <textarea id={`${id}-description`} rows={3} value={form.description} onChange={set("description")} />
         </Field>
-        <p className="muted">{t.emailTitle}: {t.emailText} <PendingMarker id="P-12" /></p>
+        <p className="muted">{form.provider === "glovo" ? t.emailNone : form.provider ? t.emailWill : t.emailGeneral}</p>
         {check.error != null && <ErrorState mutation error={check.error} />}
         <p>
           <button type="submit" disabled={check.pending}>

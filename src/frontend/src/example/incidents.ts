@@ -142,7 +142,8 @@ export function createManual(store: IncidentStore, core: IncidentCore, actor: st
     ...core,
     id: `inc-${store.counter++}`,
     batchId: null,
-    status: "imported_no_email",
+    // Uber Eats and Just Eat get their email; Glovo is claimed by hand (P-12).
+    status: core.provider === "glovo" ? "imported_no_email" : "pending_send",
     channel: channelOf(core.provider),
     claimDate: null,
     recoveryDate: null,

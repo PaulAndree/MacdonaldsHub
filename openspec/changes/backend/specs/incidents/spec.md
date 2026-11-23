@@ -56,7 +56,7 @@ The system SHALL store the incident date, the claim date and the recovery date s
 - **THEN** its time is absent and no time is invented anywhere
 
 ### Requirement: Manual entry checked against the key
-The system SHALL accept a manual incident with the same business fields and the same mandatory fields as the file. It SHALL check provider plus Order ID before saving: an existing key SHALL give a warning and create nothing, and a new key SHALL be saved only after the user reviews and confirms it. Whether a manual Uber Eats or Just Eat entry creates an email is pending P-12: until it is decided, no manual entry SHALL create an outbox record. (RF-22, E-13, P-12)
+The system SHALL accept a manual incident with the same business fields and the same mandatory fields as the file. It SHALL check provider plus Order ID before saving: an existing key SHALL give a warning and create nothing, and a new key SHALL be saved only after the user reviews and confirms it. (RF-22, E-13)
 
 #### Scenario: Existing key
 - **WHEN** the manual entry's provider and Order ID already exist
@@ -64,4 +64,4 @@ The system SHALL accept a manual incident with the same business fields and the 
 
 #### Scenario: New key reviewed and confirmed
 - **WHEN** the user confirms a reviewed manual entry with a new key
-- **THEN** the incident is created once, with audit, and no outbox record exists while P-12 is open
+- **THEN** the incident is created once, with audit

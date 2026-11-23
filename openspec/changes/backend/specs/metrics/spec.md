@@ -23,9 +23,53 @@ The system SHALL NOT mix test and production figures, and SHALL identify the env
 - **WHEN** the dashboard is read in the test environment
 - **THEN** the figures come only from that environment's data and are identified as test
 
-### Requirement: Calculation criteria pending P-04
-The system SHALL NOT implement the default date of each filter, the rate formula and denominator, division by zero, the age criterion, the restrictions on the recovered amount, or the sum rules with absent amounts until P-04 is resolved by the administrator. Examples shown in the approved design SHALL NOT become approved formulas. (P-04)
+### Requirement: Claims, recoveries and the date used
+The system SHALL count as a claim every incident that has a claim date (claimed, resolved or rejected) and as a recovery every incident marked Resuelta, whether or not it has a recorded amount. The default date SHALL be the claim date, any filter SHALL be able to use the incident, claim or recovery date instead, and the date used SHALL always be stated in the response. (RF-15, P-04)
 
-#### Scenario: Phase blocked
-- **WHEN** P-04 is not yet resolved
-- **THEN** the metrics phase does not start and no calculation of those criteria is shipped
+#### Scenario: Default date
+- **WHEN** the dashboard is read without choosing a date
+- **THEN** the figures use the claim date and the response says so
+
+#### Scenario: A rejected incident
+- **WHEN** an incident is Rechazada
+- **THEN** it counts as a claim and not as a recovery
+
+### Requirement: Recovery rate by number of claims
+The system SHALL compute the recovery rate as recoveries divided by claims, by number and not by amount, with every claim of the period in the denominator, pending and rejected ones included, and SHALL give it with four decimals. It SHALL be absent ("No calculable") when there are no claims in the period or when the recovery date is the one used, and SHALL never be shown as zero in those cases. (RF-15, P-04)
+
+#### Scenario: Rate with pending claims
+- **WHEN** a period has 5 claims, 1 of them resolved and 2 still without result
+- **THEN** the rate is 0.2000
+
+#### Scenario: No claims
+- **WHEN** the period has no claims
+- **THEN** the rate is absent, not 0
+
+#### Scenario: Recovery date chosen
+- **WHEN** the recovery date is the one used
+- **THEN** the rate is absent because the claims of that period are not defined
+
+### Requirement: Amounts are added up from what is known
+The system SHALL add the known amounts only, SHALL report how many incidents have no claim amount and flag the figure as incomplete, and SHALL leave a figure with no known amount absent, never zero. A Resuelta incident without a recorded recovered amount SHALL count as a recovery and make the recovered figure incomplete. (RF-15, RNF-13, P-04)
+
+#### Scenario: Some amounts missing
+- **WHEN** 3 claimed incidents have amounts 10.00 and 5.50 and one has none
+- **THEN** the claimed amount is 15.50, the incomplete count is 1 and a warning says the total is incomplete
+
+#### Scenario: No amount known
+- **WHEN** no claimed incident of the period has an amount
+- **THEN** the claimed amount is absent, not zero
+
+### Requirement: Age of claims without a result
+The system SHALL list the claims that have no result with their age in calendar days from the claim date to today in Europe/Madrid time, from the oldest to the newest, with no threshold and no alert. (RF-15, P-04)
+
+#### Scenario: Pending claims
+- **WHEN** two claims have no result, one claimed 10 days ago and one 2 days ago
+- **THEN** both are listed oldest first with ages 10 and 2
+
+### Requirement: Channels and breakdown
+The system SHALL report the email channel (Uber Eats and Just Eat) and the Glovo channel apart, each with its counts and amounts, and a breakdown by provider and branch where an absent branch is its own row. When nothing matches, the response SHALL have no channels and a no-data warning. (RF-15)
+
+#### Scenario: Nothing in the period
+- **WHEN** no incident matches the filters
+- **THEN** the channels, the breakdown and the pending list are empty and a no-data warning is given

@@ -39,34 +39,36 @@ Phases follow `docs/change_02_backend.md` section 11, in order. Each phase ends 
 
 ## 4. Phase 4: discard, Cerrar sesión, one batch per user, cleanup
 
-- [ ] 4.1 Implement discard of one batch in Subido, Procesando or En revisión and the Cerrar sesión operation that discards all the user's unconfirmed batches, both in one transaction and without ending the Easy Auth session. Verify E-11 and that a failure leaves the batch En revisión unchanged (BE-15).
-- [ ] 4.2 Enforce the one unconfirmed batch per user through the partial unique index and return the pending batch in the refusal. Verify BE-16 with two simultaneous requests, a Rechazado batch not blocking, and a Procesando batch being discardable.
-- [ ] 4.3 Implement the worker cleanup that removes the blob and staging of discarded and rejected batches, records failures and retries, and never claims removal early. Verify with Azurite that a failed removal is recorded and completed later.
-- [ ] 4.4 Coordinate cleanup and confirmation on the batch row. Verify BE-05: a confirmed original is never deleted and a discarded batch is never confirmed, under concurrent runs.
-- [ ] 4.5 Verify there is no automatic expiry: a batch En revisión stays confirmable after a long idle period and after the browser closes (BE-04). **Gate:** physical cleanup cadence and target stay as decided in P-05; none is invented.
-- [ ] 4.6 Review of phase 4: re-run E-11, BE-04, BE-05, BE-15 and BE-16.
+- [x] 4.1 Implement discard of one batch in Subido, Procesando or En revisión and the Cerrar sesión operation that discards all the user's unconfirmed batches, both in one transaction and without ending the Easy Auth session. Verify E-11 and that a failure leaves the batch En revisión unchanged (BE-15).
+- [x] 4.2 Enforce the one unconfirmed batch per user through the partial unique index and return the pending batch in the refusal. Verify BE-16 with two simultaneous requests, a Rechazado batch not blocking, and a Procesando batch being discardable.
+- [x] 4.3 Implement the worker cleanup that removes the blob and staging of discarded and rejected batches, records failures and retries, and never claims removal early. Verify with Azurite that a failed removal is recorded and completed later.
+- [x] 4.4 Coordinate cleanup and confirmation on the batch row. Verify BE-05: a confirmed original is never deleted and a discarded batch is never confirmed, under concurrent runs.
+- [x] 4.5 Verify there is no automatic expiry: a batch En revisión stays confirmable after a long idle period and after the browser closes (BE-04). **Gate:** physical cleanup cadence and target stay as decided in P-05; none is invented. The worker cleans on every tick until the administrator sets a cadence.
+- [x] 4.6 Review of phase 4: re-run E-11, BE-04, BE-05, BE-15 and BE-16.
 
 ## 5. Phase 5: incidents, export, results, manual entry
 
-- [ ] 5.1 Implement incident list and detail with filters by provider, branch, state and the three dates, including history. Verify E-13 prerequisites, that "Sin sucursal" and absent values are explicit, and that amounts keep their digits (`12.345`).
-- [ ] 5.2 Implement the XLSX export with the same filters. Verify the file contains exactly the matching incidents and keeps optional values.
-- [ ] 5.3 Implement the manual Glovo claim, resolution or rejection with an explicit recovered amount (partial allowed) and the audited correction. **Gate:** do not add restrictions on the recovered amount (P-04) or a claim channel (P-11). Verify E-12: a partial recovery, then a correction, shows previous and new values and changes neither the batch nor the email.
-- [ ] 5.4 Implement manual entry with the same mandatory fields, the duplicate check, and creation only after the user reviews and confirms. **Gate:** P-12 is open, so no manual entry creates an outbox record until the administrator decides. Verify E-13: an existing key warns and creates nothing, and a new key is created once with audit and no outbox.
-- [ ] 5.5 Review of phase 5: re-run E-12, E-13, RF-16, RF-21 and RF-22 and confirm read-only roles can list and export but not change.
+- [x] 5.1 Implement incident list and detail with filters by provider, branch, state and the three dates, including history. Verify E-13 prerequisites, that "Sin sucursal" and absent values are explicit, and that amounts keep their digits (`12.345`).
+- [x] 5.2 Implement the XLSX export with the same filters. Verify the file contains exactly the matching incidents and keeps optional values.
+- [x] 5.3 Implement the manual Glovo claim, resolution or rejection with an explicit recovered amount (partial allowed) and the audited correction. **Gate:** do not add restrictions on the recovered amount (P-04) or a claim channel (P-11). Verify E-12: a partial recovery, then a correction, shows previous and new values and changes neither the batch nor the email.
+- [x] 5.4 Implement manual entry with the same mandatory fields, the duplicate check, and creation only after the user reviews and confirms. P-12 was decided afterwards (see 5.6). Verify E-13: an existing key warns and creates nothing, and a new key is created once with audit.
+- [x] 5.5 Review of phase 5: re-run E-12, E-13, RF-16, RF-21 and RF-22 and confirm read-only roles can list and export but not change.
+- [x] 5.6 Create the outbox record for a manual Uber Eats or Just Eat entry in the same transaction (P-12 resolved), with the authorized recipient and template, refuse it without a configured recipient, and keep Glovo without email. Verify with tests that the incident and its pending record are created together, that Glovo has none, and that nothing is sent. The contract text and the interface notice that still say manual entries create no email are updated in 7.1.
 
-## 6. Phase 6: metrics and dashboard (blocked until P-04 is resolved)
+## 6. Phase 6: metrics and dashboard (P-04 decided)
 
-- [ ] 6.1 **Gate:** obtain the P-04 decisions from the administrator (default dates of filters, rate formula and denominator, division by zero, age criterion, recovered-amount restrictions, sum rules with absent amounts) and record them. Verify they are written down. Do not start 6.2 before this.
-- [ ] 6.2 Write failing tests, then implement the aggregations in PostgreSQL with email and Glovo apart, explicit recovered amounts, pending claims with age, incomplete-data counts and no absent value treated as zero. Verify against hand-calculated expectations from the recorded P-04 rules.
-- [ ] 6.3 Keep test and production figures separate and identified. Verify in the test environment that figures come only from its own data.
-- [ ] 6.4 Review of phase 6: re-run the metrics scenarios and compare with the approved dashboard design.
+- [x] 6.1 **Gate:** obtain the P-04 decisions from the administrator (default dates of filters, rate formula and denominator, division by zero, age criterion, recovered-amount restrictions, sum rules with absent amounts) and record them. Verify they are written down. Decided and recorded on 2026-11-23 in `docs/change_02_backend.md` section 6 and `docs/project_overview.md`.
+- [x] 6.2 Write failing tests, then implement the aggregations in PostgreSQL with email and Glovo apart, explicit recovered amounts, pending claims with age, incomplete-data counts and no absent value treated as zero. Verify against hand-calculated expectations from the recorded P-04 rules.
+- [x] 6.3 Keep test and production figures separate and identified. Verify in the test environment that figures come only from its own data.
+- [x] 6.4 Review of phase 6: re-run the metrics scenarios and compare with the approved dashboard design.
 
 ## 7. Phase 7: integration of the approved frontend
 
-- [ ] 7.1 Run the approved frontend (standard build, no example data) against the real API in compose and CI. Verify the contract test passes and the app starts with no example marker (`check:bundle:standard`).
-- [ ] 7.2 Repeat the walkthroughs UI-01 to UI-06 and UI-09 to UI-12 against the real API with the sample files in `docs/samples/xlsx/`, record each result, and fix any difference found. Verify all ten rows have a result.
-- [ ] 7.3 Record in the change docs that UI-07 and UI-08 are verified in change 3, together with the email queue operations deferred in the contract test. Verify the list of deferred operations matches the contract test.
-- [ ] 7.4 Run the final check: CI green, images build, no secret in the repository, all open gates and their decisions listed with their status. Verify the result is recorded with the audit link for a confirmed batch (BE-10).
+- [x] 7.1 Bring the approved contract, the example data and the interface texts in line with the decisions taken after the approval: manual entries of Uber Eats and Just Eat create an email (P-12) and the dashboard criteria are approved (P-04, `criteria.status` approved, example notes removed). Regenerate the types, bump `info.version`, and record the administrator's approval of the new version in `docs/approvals/change_01_frontend.md` before integrating. Verify `npm run contract:check` and `npm run approval:check` pass and the frontend tests are updated.
+- [x] 7.2 Run the approved frontend (standard build, no example data) against the real API in compose and CI. Verify the contract test passes and the app starts with no example marker (`check:bundle:standard`).
+- [x] 7.3 Repeat the walkthroughs UI-01 to UI-06 and UI-09 to UI-12 against the real API with the sample files in `docs/samples/xlsx/`, record each result, and fix any difference found. Verify all ten rows have a result.
+- [x] 7.4 Record in the change docs that UI-07 and UI-08 are verified in change 3, together with the email queue operations deferred in the contract test. Verify the list of deferred operations matches the contract test.
+- [x] 7.5 Run the final check: CI green, images build, no secret in the repository, all open gates and their decisions listed with their status. Verify the result is recorded with the audit link for a confirmed batch (BE-10).
 
 ## Workflow follow-up
 

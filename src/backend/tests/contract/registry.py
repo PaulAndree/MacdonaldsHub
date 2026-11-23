@@ -6,21 +6,7 @@ this change on purpose (design D13). An operation in neither list must be served
 """
 
 # Operation ids of docs/api/openapi.yaml still to implement in this change, with their phase.
-PENDING: dict[str, int] = {
-    "getPendingBatch": 4,
-    "discardUnconfirmedBatches": 4,
-    "discardBatch": 4,
-    "listIncidents": 5,
-    "exportIncidents": 5,
-    "checkManualIncident": 5,
-    "createManualIncident": 5,
-    "getIncident": 5,
-    "claimGlovoIncident": 5,
-    "recordIncidentResult": 5,
-    "correctIncidentResult": 5,
-    "getMetrics": 6,
-    "listBranchOptions": 5,
-}
+PENDING: dict[str, int] = {}
 
 # Change 3 (email-sending) serves the email queue.
 DEFERRED: frozenset[str] = frozenset({"getEmailQueue", "pauseEmailQueue", "resumeEmailQueue"})

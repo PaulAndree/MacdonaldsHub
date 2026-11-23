@@ -78,7 +78,7 @@ The standard build already calls `/api/...`; phase 7 verifies each screen agains
 - [Preview of 300–600 rows or more is slow] → batch inserts, one set query for existing incidents, paging in the API; no truncation, and the only limit is 10 MB of file size (P-06).
 - [Confirmation holds a row lock while it writes up to hundreds of rows] → the transaction does no I/O to Blob or mail; hundreds of rows commit in well under a second.
 - [Original copy fails after commit] → batch stays confirmed, copy is retried, discrepancy alerted, cleanup protects the temporary blob.
-- [Decisions still open could block phases] → P-12 gates manual-entry email, P-04 blocks phase 6, P-10 gates any Total validation, P-08 gates real data. Each is a visible task gate, not an assumed default.
+- [Decisions still open could block phases] → P-10 gates any Total validation, P-08 gates real data. Each is a visible task gate, not an assumed default.
 - [Two overlapping revisions run the worker] → the existing advisory lock and `SKIP LOCKED` per row keep one owner; leases make takeover safe.
 
 ## Migration Plan
@@ -89,7 +89,7 @@ Phases follow `docs/change_02_backend.md` section 11, each ending with green tes
 3. Atomic confirmation and outbox without sending, plus the `confirmed` role.
 4. Discard, Cerrar sesión, one batch per user, cleanup.
 5. Incidents, export, results, manual entry.
-6. Metrics (blocked until P-04).
+6. Metrics (P-04 decided).
 7. Frontend integration with the real API.
 
 Deploy order per phase: migrations run before the applications (existing job). Rollback of a phase: revert the migration and redeploy the previous image; confirmed data is never deleted by a rollback of the application.

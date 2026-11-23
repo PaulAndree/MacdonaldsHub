@@ -6,13 +6,14 @@ import type { Metrics } from "./queries";
 
 const t = es.metrics.pending;
 
-/** Claims still waiting for a result, with how long they have waited. The age criterion is an example (P-04). */
+/** Claims still waiting for a result, with how long they have waited. The age criterion is the decided one, unless the contract still says it is an example. */
 export default function PendingClaims({ claims, criteria }: { claims: Metrics["pendingClaims"]; criteria: Metrics["criteria"] }) {
   return (
     <section className="card" aria-labelledby="pending-title">
       <h2 id="pending-title">{t.title}</h2>
       <p className="muted">
-        {t.note} {criteria.pendingDecision && <PendingMarker id={criteria.pendingDecision} />}
+        {criteria.status === "example" ? t.noteExample : t.note}{" "}
+        {criteria.status === "example" && criteria.pendingDecision && <PendingMarker id={criteria.pendingDecision} />}
       </p>
       {claims.length === 0 ? (
         <p>{t.empty}</p>

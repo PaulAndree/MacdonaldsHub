@@ -9,8 +9,10 @@ import io
 import re
 import zipfile
 from collections.abc import Sequence
+from decimal import Decimal
 from xml.sax.saxutils import escape
 
+from app.services.incidents import IncidentRecord
 from app.services.preview import PreviewRow
 
 _NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -65,6 +67,12 @@ def build_excluded_report(rows: Sequence[PreviewRow]) -> bytes:
         ]
         lines.append(cells)
 
+    return _package(lines, "Filas excluidas")
+
+
+def _package(lines: list[list[tuple[str, bool]]], sheet_name: str) -> bytes:
+    """A one-sheet .xlsx. A cell is (value, numeric): numeric cells that look like a number are
+    written as numbers, everything else (and the header) as text."""
     body: list[str] = []
     for r, cells in enumerate(lines, start=1):
         out = []
@@ -101,7 +109,7 @@ def build_excluded_report(rows: Sequence[PreviewRow]) -> bytes:
         z.writestr(
             "xl/workbook.xml",
             f'<?xml version="1.0"?><workbook xmlns="{_NS}" xmlns:r="{_REL}"><sheets>'
-            '<sheet name="Filas excluidas" sheetId="1" r:id="rId1"/></sheets></workbook>',
+            f'<sheet name="{escape(sheet_name)}" sheetId="1" r:id="rId1"/></sheets></workbook>',
         )
         z.writestr(
             "xl/_rels/workbook.xml.rels",
@@ -110,3 +118,66 @@ def build_excluded_report(rows: Sequence[PreviewRow]) -> bytes:
         )
         z.writestr("xl/worksheets/sheet1.xml", sheet)
     return buffer.getvalue()
+
+
+# --- the incident export (RF-16) -------------------------------------------------------------------
+# Absent values are written out and never become zero. The texts are the ones of the approved design.
+
+INCIDENT_HEADERS = (
+    "ID",
+    "Proveedor",
+    "Order ID",
+    "Fecha de la incidencia",
+    "Hora (Madrid)",
+    "Sucursal",
+    "Importe a reclamar",
+    "Costos de proveedor",
+    "Total",
+    "Descripción",
+    "Estado",
+    "Canal",
+    "Fecha de reclamación",
+    "Fecha de recuperación",
+    "Importe recuperado",
+)
+_PROVIDER_NAMES = {"uber eats": "Uber Eats", "just eat": "Just Eat", "glovo": "Glovo"}
+_STATUS_NAMES = {
+    "imported_no_email": "Importada (sin correo)",
+    "pending_send": "Pendiente de envío",
+    "claimed": "Reclamada",
+    "send_error": "Error de envío",
+    "resolved": "Resuelta",
+    "rejected": "Rechazada",
+}
+_CHANNEL_NAMES = {"email": "Correo", "glovo": "Glovo (manual)"}
+UNKNOWN_AMOUNT = "Importe desconocido"
+
+
+def build_incident_export(incidents: Sequence[IncidentRecord]) -> bytes:
+    """Incidents as a sheet. An amount is a numeric cell with the digits it has; absent is text."""
+
+    def amount(value: Decimal | None) -> tuple[str, bool]:
+        return (UNKNOWN_AMOUNT, False) if value is None else (format(value, "f"), True)
+
+    rows: list[list[tuple[str, bool]]] = [[(h, False) for h in INCIDENT_HEADERS]]
+    for i in incidents:
+        rows.append(
+            [
+                (i.id, False),
+                (_PROVIDER_NAMES.get(i.provider, i.provider), False),
+                (i.order_id, False),
+                (i.incident_date.isoformat(), False),
+                (i.incident_time.strftime("%H:%M") if i.incident_time else "Sin hora", False),
+                (i.branch or "Sin sucursal", False),
+                amount(i.claim_amount),
+                amount(i.provider_costs),
+                amount(i.total),
+                (i.description or "Sin descripción", False),
+                (_STATUS_NAMES.get(i.status, i.status), False),
+                (_CHANNEL_NAMES[i.channel], False),
+                (i.claim_date.isoformat() if i.claim_date else "Sin reclamar", False),
+                (i.recovery_date.isoformat() if i.recovery_date else "Sin recuperar", False),
+                amount(i.recovered_amount),
+            ]
+        )
+    return _package(rows, "Incidencias")

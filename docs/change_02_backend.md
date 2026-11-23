@@ -96,11 +96,17 @@ Confirmación y limpieza se coordinan en PostgreSQL para que una operación no e
 - Mostrar pendientes de resultado y antigüedad. Agregar en PostgreSQL, sin almacén analítico adicional.
 - Recuperado y tasa deben basarse en cantidades registradas. Ausente no es cero. Mostrar datos incompletos y no mezclar métricas de prueba y producción.
 
-**P-04, por definir antes de implementar el cálculo:** fecha por defecto de cada filtro, fórmula temporal de tasa y denominador, división por cero, criterio de antigüedad, restricciones de importe recuperado y reglas de suma con importes ausentes. El diseño puede mostrar ejemplos identificados; no convertirlos en fórmulas aprobadas.
+**P-04 resuelto (administrador, 2026-11-23):**
+- **Fecha por defecto:** fecha de reclamación; el usuario puede elegir otra y siempre se le dice cuál se usa.
+- **Reclamación:** toda incidencia con fecha de reclamación (reclamada, resuelta o rechazada). **Recuperación:** toda incidencia marcada Resuelta, tenga o no importe registrado.
+- **Tasa de recuperación:** recuperaciones ÷ reclamaciones, por número y no por importe, con todas las reclamaciones del periodo en el denominador (también las pendientes y las rechazadas). Con denominador 0 se muestra «No calculable», nunca 0 % ni error. Con la fecha de recuperación elegida no hay reclamaciones definidas para el periodo, así que la tasa también es «No calculable». Se expresa con cuatro decimales.
+- **Antigüedad:** días naturales desde la fecha de reclamación hasta hoy (hora de Madrid) de las reclamaciones sin resultado, de la más antigua a la más reciente, sin umbral ni alertas.
+- **Importes incompletos:** se suman los importes conocidos y se avisa «Incompleto» con el número de incidencias sin importe; si no hay ninguno conocido, la cifra queda «Sin datos», nunca 0.
+- **Importe recuperado:** sin restricciones (cualquier decimal), con correcciones auditadas.
 
 ## 7. Alta manual y auditoría
 
-RF-22: formulario con los mismos campos de negocio y obligatoriedad básica del XLSX. Validar y comprobar proveedor + order ID; una clave existente avisa y no crea otra incidencia. Una nueva incidencia requiere revisión y confirmación antes de persistirse. Si genera correo, utiliza la misma transacción y outbox, nunca un envío directo. **P-12:** decidir si el alta manual de Uber Eats/Just Eat genera correo; no habilitar esa opción sin resolverlo.
+RF-22: formulario con los mismos campos de negocio y obligatoriedad básica del XLSX. Validar y comprobar proveedor + order ID; una clave existente avisa y no crea otra incidencia. Una nueva incidencia requiere revisión y confirmación antes de persistirse. **P-12 resuelto (administrador, 2026-11-23):** un alta manual de Uber Eats o Just Eat **sí genera correo**, en la misma transacción y con el mismo outbox, nunca con un envío directo; solo Glovo se reclama a mano y no genera correo. Sin destinatario autorizado configurado, ese alta se rechaza.
 
 RF-18 (retirado): no hay API ni pantalla para administrar autorizaciones de identidades Google y roles, sucursales y proveedores. El equipo técnico los mantiene con migraciones y configuración, y el backend solo los lee: la allowlist y los roles (el administrador inicial sale de la configuración), el catálogo de sucursales y los proveedores con destinatarios configurables. Hasta definir los reales (P-01) se utiliza solo el destinatario de prueba. Mantener coherencia entre allowlist y permisos aplicados por FastAPI. No crear contraseñas propias ni cuentas Google. Retirar una identidad la deja sin acceso aunque su sesión Google continúe.
 
@@ -120,14 +126,14 @@ RF-19 (solo registro): auditoría de subidas, confirmaciones, envíos futuros, r
 | RF-08 | Atomicidad PostgreSQL | Incidencias, outbox, estado y auditoría juntos o ninguno |
 | RF-09 | Idempotencia | Repetir confirmación no añade efectos |
 | RF-10 | Comprobar al confirmar | Coincidencias sobrevenidas se excluyen y se informa |
-| RF-15 | Métricas y seguimiento | Correo/Glovo separados y recuperación explícita; cálculo pendiente P-04 |
+| RF-15 | Métricas y seguimiento | Correo/Glovo separados y recuperación explícita; criterios de P-04 resueltos |
 | RF-16 | Consulta y exportación | Filtros respetados y valores opcionales conservados |
 | RF-17 | Descarte explícito | Cancelar y el botón Cerrar sesión eliminan temporales; sin caducidad automática |
 | RF-18 | Administración (retirado) | Sin API ni pantalla: autorizaciones, roles, sucursales y proveedores los gestiona el equipo técnico y el backend los lee |
 | RF-19 | Auditoría y original | Operaciones registradas y original confirmado enlazado; sin consulta desde la aplicación |
 | RF-20 | Informe excluidas | XLSX con filas y motivos para corregir y volver a subir |
 | RF-21 | Resultados manuales | Parciales y correcciones con historial |
-| RF-22 | Alta manual | Misma unicidad y confirmación humana; correo pendiente P-12 |
+| RF-22 | Alta manual | Misma unicidad y confirmación humana; correo para Uber Eats y Just Eat (P-12 resuelto) |
 
 Se conservan las reglas originales de negocio compatibles, agrupadas así: RN-01 unicidad; RN-02 clasificación; RN-03 elegibilidad; RN-04 correo solo Uber Eats/Just Eat; RN-06 importes; RN-07 confirmación; RN-09 estructura; RN-10 temporalidad; RN-11 aviso de archivo idéntico; RN-13 sin exclusión por antigüedad; RN-15 resultados. Las reglas RN-05, RN-08, RN-12 y RN-14 se concretan en el cambio 3.
 
@@ -182,7 +188,7 @@ Frontend conectado al backend, flujo de revisión/confirmación verificable, ori
 | 3 | Confirmación atómica e idempotente y outbox sin envío | E-06 a E-08, BE-02, BE-03, BE-07, BE-10, BE-11 |
 | 4 | Descarte, Cerrar sesión, lote único por usuario y limpieza | E-11, BE-04, BE-05, BE-15, BE-16 |
 | 5 | Incidencias, exportación, resultados y alta manual | E-12, E-13, RF-16, RF-21, RF-22 |
-| 6 | Métricas y panel. **Bloqueada hasta resolver P-04** | RF-15 |
-| 7 | Integración del frontend aprobado con la API real | Recorridos UI-01 a UI-12 contra la API real |
+| 6 | Métricas y panel (P-04 resuelto) | RF-15 |
+| 7 | Integración del frontend aprobado con la API real | Recorridos UI-01 a UI-06 y UI-09 a UI-12 contra la API real; UI-07 y UI-08 se verifican en el cambio 3, que implementa el envío y las operaciones de la cola de correo |
 
 El catálogo inicial de sucursales debe existir antes de la fase 2. La fase 2 requiere además P-06 y P-09 resueltos en lo que le afecta, y las fases 2 a 7 requieren la aprobación explícita del cambio 1 (la fase 1 no implementa lógica de negocio).

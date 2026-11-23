@@ -73,8 +73,8 @@ describe("claim an incident that has no email (RF-21)", () => {
     expect((await incident("inc-003")).claimDate).toBe("2026-11-21");
   });
 
-  it("is also offered for a manual entry, which has no email", async () => {
-    const created = await call("/api/incidents/manual", { provider: "uber eats", orderId: "UE-200001", incidentDate: "2026-11-21", incidentTime: null, branch: "centro", claimAmount: "18.75", providerCosts: null, total: null, description: null });
+  it("is also offered for a manual Glovo entry, which has no email", async () => {
+    const created = await call("/api/incidents/manual", { provider: "glovo", orderId: "GL-200001", incidentDate: "2026-11-21", incidentTime: null, branch: "centro", claimAmount: "18.75", providerCosts: null, total: null, description: null });
     show(`/incidencias/${created.id}`);
     expect(await screen.findByRole("heading", { level: 2, name: a.claim.title })).toBeInTheDocument();
   });

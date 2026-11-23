@@ -71,10 +71,10 @@ describe("example incidents: checking a manual entry (RF-22)", () => {
 });
 
 describe("example incidents: manual entry", () => {
-  it("creates an incident with no email and a first history entry", () => {
+  it("creates an Uber Eats incident with its email pending (P-12) and a first history entry", () => {
     const s = store();
     const created = createManual(s, core(), "admin-1");
-    expect(created.status).toBe("imported_no_email");
+    expect(created.status).toBe("pending_send");
     expect(created.channel).toBe("email");
     expect(created.batchId).toBeNull();
     expect(detailOf(s, created.id)?.history).toHaveLength(1);

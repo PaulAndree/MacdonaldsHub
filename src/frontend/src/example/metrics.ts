@@ -20,67 +20,89 @@ export interface MetricsQuery {
 const dateOf = (incident: Incident, kind: string): string | null =>
   kind === "recovery" ? incident.recoveryDate : kind === "incident" ? incident.incidentDate : incident.claimDate;
 
+/** What PostgreSQL aggregates in the real backend, worked out here the same way (P-04). */
 function figures(group: Incident[]) {
-  const claimed = group.map((i) => i.claimAmount).filter((v): v is string => v !== null);
-  const recovered = group.map((i) => i.recoveredAmount).filter((v): v is string => v !== null);
+  const claims = group.filter((i) => i.claimDate !== null);
+  const recoveries = group.filter((i) => i.status === "resolved");
+  const claimedAmounts = claims.map((i) => i.claimAmount).filter((v): v is string => v !== null);
+  const recoveredAmounts = recoveries.map((i) => i.recoveredAmount).filter((v): v is string => v !== null);
   return {
-    claimedCount: group.length,
-    claimedAmount: sumDecimals(claimed),
-    recoveredCount: recovered.length,
-    recoveredAmount: sumDecimals(recovered),
-    incompleteCount: group.length - claimed.length,
+    claimedCount: claims.length,
+    claimedAmount: sumDecimals(claimedAmounts),
+    recoveredCount: recoveries.length,
+    recoveredAmount: sumDecimals(recoveredAmounts),
+    incompleteCount: claims.length - claimedAmounts.length,
   };
 }
 
+/** Incidents with a missing amount of either kind (claim or recovered), for the warning. */
+function withMissingAmount(group: Incident[]): number {
+  return new Set([
+    ...group.filter((i) => i.claimDate !== null && i.claimAmount === null).map((i) => i.id),
+    ...group.filter((i) => i.status === "resolved" && i.recoveredAmount === null).map((i) => i.id),
+  ]).size;
+}
+
+/** Recoveries over claims, by number, with four decimals. Not calculable without claims or by recovery date. */
+function recoveryRate(recovered: number, claimed: number, dateKind: string): string | null {
+  return claimed === 0 || dateKind === "recovery" ? null : ratio(String(recovered), String(claimed));
+}
+
 /**
- * The dashboard figures of the example, worked out from the incidents it holds. Only claimed incidents
- * count. Amounts are summed exactly, an absent amount is left out of the sum and counted as
- * incomplete (never as zero). The rate and the age are the example criteria of P-04, not approved ones.
- * This imitates the backend; the real calculation is defined in change 2.
+ * The dashboard of the example, with the criteria the administrator decided (P-04): a claim is an
+ * incident with a claim date, a recovery is a Resuelta incident, the rate is recoveries over claims
+ * by number, amounts add up what is known and count what is missing (never as zero), and the age is
+ * in calendar days. This imitates the backend, which does the same sums in PostgreSQL.
  */
 export function computeMetrics(store: IncidentStore, query: MetricsQuery, environment: Environment): Metrics {
   const kind = query.dateKind || "claim";
-  const byFilters = store.items
+  const scope = store.items
     .filter((i) => !query.provider || i.provider === query.provider)
-    .filter((i) => !query.branch || (query.branch === "none" ? i.branch === null : i.branch === query.branch));
-
-  const claimedInRange = byFilters
-    .filter((i) => i.claimDate !== null)
+    .filter((i) => !query.branch || (query.branch === "none" ? i.branch === null : i.branch === query.branch))
     .filter((i) => {
       if (!query.from && !query.to) return true;
       const date = dateOf(i, kind);
       return date !== null && (!query.from || date >= query.from) && (!query.to || date <= query.to);
     });
 
-  const channels = (["email", "glovo"] as const).map((channel) => {
-    const group = claimedInRange.filter((i) => i.channel === channel);
-    const f = figures(group);
+  if (scope.length === 0) {
     return {
-      channel,
-      ...f,
-      recoveryRate: f.claimedAmount !== null && f.recoveredAmount !== null ? ratio(f.recoveredAmount, f.claimedAmount) : null,
+      environment,
+      dateKind: kind as Metrics["dateKind"],
+      criteria: { status: "approved", pendingDecision: null },
+      channels: [],
+      breakdown: [],
+      pendingClaims: [],
+      warnings: [{ code: "no_data", message: "No hay datos para el periodo seleccionado.", count: 0 }],
     };
+  }
+
+  const channels = (["email", "glovo"] as const).map((channel) => {
+    const f = figures(scope.filter((i) => i.channel === channel));
+    return { channel, ...f, recoveryRate: recoveryRate(f.recoveredCount, f.claimedCount, kind) };
   });
 
-  const keys = [...new Set(claimedInRange.map((i) => `${i.provider}|${i.branch ?? ""}`))].sort();
-  const breakdown = keys.map((key) => {
-    const [provider, branch] = key.split("|") as [Incident["provider"], string];
-    const group = claimedInRange.filter((i) => i.provider === provider && (i.branch ?? "") === branch);
-    return { provider, branch: branch === "" ? null : branch, ...figures(group) };
-  });
+  const keys = [...new Set(scope.map((i) => `${i.provider}|${i.branch ?? ""}`))].sort();
+  const breakdown = keys
+    .map((key) => {
+      const [provider, branch] = key.split("|") as [Incident["provider"], string];
+      const group = scope.filter((i) => i.provider === provider && (i.branch ?? "") === branch);
+      const f = figures(group);
+      return { provider, branch: branch === "" ? null : branch, ...f };
+    })
+    .filter((row) => row.claimedCount > 0 || row.recoveredCount > 0);
 
-  const pendingClaims = byFilters
+  const pendingClaims = scope
     .filter((i) => i.status === "claimed" && i.claimDate !== null)
-    .map((i) => ({ incidentId: i.id, provider: i.provider, claimDate: i.claimDate as string, ageDays: daysBetween(i.claimDate as string, EXAMPLE_TODAY) }))
+    .map((i) => ({ incidentId: i.id, provider: i.provider, claimDate: i.claimDate as string, ageDays: Math.max(0, daysBetween(i.claimDate as string, EXAMPLE_TODAY)) }))
     .sort((a, b) => b.ageDays - a.ageDays);
 
-  const incomplete = channels.reduce((total, c) => total + c.incompleteCount, 0);
+  const incomplete = withMissingAmount(scope);
   const warnings: Metrics["warnings"] = [];
-  if (claimedInRange.length === 0) warnings.push({ code: "no_data", message: "No hay datos para el periodo seleccionado.", count: 0 });
   if (incomplete > 0) {
     warnings.push({
       code: "incomplete_amounts",
-      message: incomplete === 1 ? "Hay 1 incidencia sin importe a reclamar: el total está incompleto." : `Hay ${incomplete} incidencias sin importe a reclamar: el total está incompleto.`,
+      message: `Hay ${incomplete} ${incomplete === 1 ? "incidencia sin importe" : "incidencias sin importe"}: los totales están incompletos.`,
       count: incomplete,
     });
   }
@@ -88,7 +110,7 @@ export function computeMetrics(store: IncidentStore, query: MetricsQuery, enviro
   return {
     environment,
     dateKind: kind as Metrics["dateKind"],
-    criteria: { status: "example", pendingDecision: "P-04" },
+    criteria: { status: "approved", pendingDecision: null },
     channels,
     breakdown,
     pendingClaims,

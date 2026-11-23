@@ -138,7 +138,7 @@ Son las únicas cuatro fuentes de cambios. El frontend se aprueba antes de imple
 | P-01 | Dirección del destinatario de prueba y direcciones reales de Uber Eats y Just Eat |
 | P-02 | Acceso y configuración operativa del buzón; nunca publicar credenciales |
 | P-03 | Asunto y texto de plantilla; inclusión de descripción libre; el correo solo incluye el número de incidencia (sin importes ni descripción) |
-| P-04 | Fórmulas temporales, filtros, antigüedad y tratamiento de importes incompletos |
+| P-04 | Resuelto (ver cambio 2): fecha de reclamación por defecto; tasa = recuperaciones ÷ reclamaciones; antigüedad en días naturales; se suman los importes conocidos y se avisa; importe recuperado sin restricciones |
 | P-05 | Retención de originales confirmados, objetivos de disponibilidad, backup/restauración y cadencia de limpieza |
 | P-06 | Límites máximos XLSX y muestra anonimizada de entrada. Resuelto en parte: 10 MB como tamaño máximo, sin límite de filas aparte; sin muestra anonimizada, se usan archivos sintéticos |
 | P-07 | Habilitación del gerente global, valores e identificador estable de la allowlist |
@@ -146,6 +146,6 @@ Son las únicas cuatro fuentes de cambios. El frontend se aprueba antes de imple
 | P-09 | Resuelto (ver cambio 2): archivo supuesto curado; fórmulas = error de fila; encabezados adicionales ignorados; filas vacías omitidas; fecha/hora y Order ID; la hora local se conserva sin convertir |
 | P-10 | Si debe existir relación matemática entre Total, Importe a reclamar y Costos de proveedor |
 | P-11 | Vía externa de reclamación Glovo, protección de datos libres y obligaciones adicionales |
-| P-12 | Si el alta manual genera correo; siempre requiere confirmación antes de crear la incidencia |
+| P-12 | Resuelto: el alta manual de Uber Eats y Just Eat genera correo (solo Glovo se reclama a mano); siempre requiere confirmación antes de crear la incidencia |
 
 Estos puntos no reabren unicidad, flujo, identidad, cuatro cambios, ausencia de caducidad automática ni prohibición de reintentar correos.

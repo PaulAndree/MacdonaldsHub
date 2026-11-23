@@ -1,5 +1,6 @@
 """The API against the approved contract (ADR-16, BE-18): a difference blocks the integration."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -41,7 +42,13 @@ def generated() -> dict:  # type: ignore[type-arg]
 
 
 def test_the_approved_contract_is_the_one_in_the_repository(approved) -> None:  # type: ignore[no-untyped-def]
-    assert approved["info"]["version"] == "0.1.0"
+    # The version is whatever the administrator's approval record names, not a number written here.
+    record = (CONTRACT.parents[1] / "approvals" / "change_01_frontend.md").read_text(
+        encoding="utf-8"
+    )
+    recorded = re.search(r"<!--\s*approval:\s*contractVersion=(\S+)", record)
+    assert recorded is not None, "the approval record has no marker"
+    assert approved["info"]["version"] == recorded.group(1)
     assert len(operations(approved)) == 24
 
 
@@ -91,3 +98,14 @@ def test_a_field_added_by_hand_to_a_served_response_fails_the_contract(approved,
     changed["components"]["schemas"]["Session"]["properties"]["extra"] = {"type": "string"}
     served = set(operations(changed)) & set(operations(approved))
     assert differences(approved, changed, served) == ["getSession: response 200 differs"]
+
+
+def test_the_deferred_operations_are_recorded_in_the_walkthrough_document() -> None:
+    document = (CONTRACT.parents[1] / "approvals" / "change_02_backend.md").read_text(
+        encoding="utf-8"
+    )
+    for operation in DEFERRED:
+        assert operation in document, (
+            f"{operation} is deferred but not recorded for the walkthroughs"
+        )
+    assert "UI-07" in document and "UI-08" in document

@@ -7,11 +7,13 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.adapters.xlsx.writer import build_excluded_report
+from app.api.authorized_email import authorized_email
 from app.api.errors import CONFLICT, NOT_FOUND, SECURED, UNPROCESSABLE
-from app.api.security import ApiError, require_permission
+from app.api.security import ApiError, current_user, require_permission
 from app.domain import email_template
 from app.services.authorization import AuthorizedUser
 from app.services.batches import (
+    BatchAlreadyConfirmed,
     BatchNotFound,
     BatchRecord,
     BatchService,
@@ -19,7 +21,6 @@ from app.services.batches import (
     UploadNotFound,
 )
 from app.services.confirmation import (
-    AuthorizedEmail,
     BatchNotConfirmable,
     ConfirmationService,
     RecipientNotConfigured,
@@ -31,6 +32,7 @@ from app.services.preview import PreviewRow, PreviewService, RowsPage
 router = APIRouter(tags=["batches"])
 
 Importer = Annotated[AuthorizedUser, Depends(require_permission("import"))]
+Signed = Annotated[AuthorizedUser, Depends(current_user)]
 Confirmer = Annotated[AuthorizedUser, Depends(require_permission("confirm"))]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 BatchState = Literal[
@@ -278,6 +280,62 @@ def create_batch(
     return BatchUpload(batch=to_api(record), upload=grant_to_api(grant))
 
 
+class DiscardResult(BaseModel):
+    discarded: int = Field(ge=0)
+    batchIds: list[str]
+
+
+@router.get(
+    "/api/batches/pending",
+    operation_id="getPendingBatch",
+    response_model=Batch,
+    responses={204: {"description": "The user has no unconfirmed batch."}, **SECURED},
+)
+def get_pending_batch(
+    user: Importer, service: Annotated[BatchService, Depends(batch_service)]
+) -> Batch | Response:
+    record = service.pending(user.identifier)
+    return Response(status_code=204) if record is None else to_api(record)
+
+
+@router.post(
+    "/api/batches/discard-unconfirmed",
+    operation_id="discardUnconfirmedBatches",
+    response_model=DiscardResult,
+    responses=SECURED,
+)
+def discard_unconfirmed_batches(
+    user: Signed, service: Annotated[BatchService, Depends(batch_service)]
+) -> DiscardResult:
+    """What Cerrar sesión calls. Any signed-in user may: it only touches their own batches, and it
+    does not end the Google session."""
+    ids = service.discard_unconfirmed(user.identifier)
+    return DiscardResult(discarded=len(ids), batchIds=ids)
+
+
+@router.post(
+    "/api/batches/{batchId}/discard",
+    operation_id="discardBatch",
+    response_model=Batch,
+    responses={**SECURED, **NOT_FOUND, **CONFLICT},
+)
+def discard_batch(
+    batchId: str, user: Importer, service: Annotated[BatchService, Depends(batch_service)]
+) -> Batch:
+    try:
+        return to_api(service.discard(user.identifier, batchId))
+    except BatchNotFound:
+        raise not_found() from None
+    except BatchAlreadyConfirmed:
+        raise ApiError(
+            409,
+            {
+                "code": "batch_already_confirmed",
+                "message": "El lote ya está confirmado y no se puede cancelar ni deshacer.",
+            },
+        ) from None
+
+
 @router.post(
     "/api/batches/{batchId}/uploaded",
     operation_id="completeUpload",
@@ -415,19 +473,6 @@ class ConfirmationResult(BaseModel):
     excluded: list[ExcludedRow]
     excludedAtConfirmation: list[ExcludedRow]
     alreadyConfirmed: bool
-
-
-def authorized_email(request: Request) -> AuthorizedEmail | None:
-    """The recipient and template authorized now: only the configured test recipient (P-01)."""
-    recipient = request.app.state.settings.test_recipient_email
-    if not recipient:
-        return None
-    return AuthorizedEmail(
-        recipient=recipient,
-        template_version=email_template.TEMPLATE_VERSION,
-        subject=email_template.SUBJECT,
-        body=email_template.BODY,
-    )
 
 
 def confirmation_service(request: Request) -> ConfirmationService:
