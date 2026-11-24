@@ -45,8 +45,8 @@ Order: schema and settings, the rules and the consumer under test, the transport
 ## 8. Walkthroughs and final check
 
 - [x] 8.1 **Gate:** the mailbox (P-02) for the Azure test environment, and the recipient (P-01) and text (P-03) before any real send; record their status. Verify they are written down and that none is defaulted.
-- [ ] 8.2 Repeat UI-07 (an email ending in Error, with its reason and no retry action) and UI-08 (pausing explains that a started attempt may finish) on the real stack, recording each result in `docs/approvals/change_02_backend.md`. Verify both rows are filled in by the administrator.
-- [ ] 8.3 Run the final check: CI green, images build, no secret in the repository, no mechanism of retry anywhere, the interval respected in the logs of a run, and the open gates listed with their status. Verify the results are recorded.
+- [x] 8.2 Repeat UI-07 (an email ending in Error, with its reason and no retry action) and UI-08 (pausing explains that a started attempt may finish) on the real stack, recording each result in `docs/approvals/change_02_backend.md`. Verify both rows are filled in by the administrator.
+- [x] 8.3 Run the final check: CI green, images build, no secret in the repository, no mechanism of retry anywhere, the interval respected in the logs of a run, and the open gates listed with their status. Verify the results are recorded.
 
 ## Workflow follow-up
 

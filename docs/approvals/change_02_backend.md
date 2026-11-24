@@ -37,8 +37,8 @@ For UI-10 restart the API as a read-only user: `DEV_IDENTITY_ROLE=global_manager
 | UI-11 | Review every row above | Layout, navigation and interaction approved, or adjustments requested | OK | |
 | UI-12 | With an unconfirmed batch, try to upload another file | Upload blocked, pending batch named, options to resume or cancel it | OK | |
 
-| UI-07 | Importar and confirm `incidencias-sucursales-reales.xlsx`, then `TEST_RECIPIENT_EMAIL=otro@example.test docker compose up -d --force-recreate api worker` (the stored recipient is no longer the authorized one), open Cola de envío and press Reanudar | The email ends in Error with its reason ("Destinatario no autorizado: el correo no se envió."), the incident is "Error de envío", there is no retry action and nothing arrives in the mail capture | Pending | To be filled in by the administrator |
-| UI-08 | With pending emails press Reanudar and, while one is being sent, press Pausar | The screen explains that an attempt already started may finish and that no further email starts; after it the queue is paused | Pending | To be filled in by the administrator |
+| UI-07 | Importar and confirm `incidencias-sucursales-reales.xlsx`, then `TEST_RECIPIENT_EMAIL=otro@example.test docker compose up -d --force-recreate api worker` (the stored recipient is no longer the authorized one), open Cola de envío and press Reanudar | The email ends in Error with its reason ("Destinatario no autorizado: el correo no se envió."), the incident is "Error de envío", there is no retry action and nothing arrives in the mail capture | OK | |
+| UI-08 | With pending emails press Reanudar and, while one is being sent, press Pausar | The screen explains that an attempt already started may finish and that no further email starts; after it the queue is paused | OK | |
 
 The queue starts paused: the administrator presses Reanudar to send. Emails go out one at a time at least 30 seconds apart and only to the test recipient (P-01). Mail capture is at `http://localhost:8025`.
 
@@ -59,6 +59,22 @@ Run on 2026-11-23 on the commit that follows `673a8ad` of the branch `backend`, 
 | Audit link of a confirmed batch (BE-10) | Verified by `test_the_confirmation_is_audited_with_the_reviewed_hash` and `test_the_original_is_copied_verified_and_linked`: the audit names the user, the instant and the reviewed SHA-256, and the original is stored and verified in the confirmed store |
 | No secret in the repository | No `.env`, key or certificate is tracked; the only matches are the public Azurite development key and test fixtures |
 | CI of the branch | To be confirmed by the merge of the pull request |
+
+## Final check of change 3 (8.3)
+
+Run on 2026-11-24.
+
+| Check | Result |
+|---|---|
+| CI | Green on the merge of the pull request (the Deploy runs on `main` call the whole CI and succeeded); the smoke step with sending passed |
+| Backend | `ruff`, `mypy`, `lint-imports` clean; 692 tests with real PostgreSQL, Azurite and mail capture |
+| Infrastructure | 21 template tests and the Bicep lint pass |
+| Images | The three images build in the CI |
+| No secret in the repository | No `.env`, key or certificate tracked and no credential pattern found; the mailbox password and the Google client secret exist only in Key Vault |
+| No retry of emails | The only retry code left in the backend is the cleanup and the original copy, never an email; a started attempt that cannot be verified ends in Error and is not resent |
+| Interval | A full run of 8 emails in the local stack showed exactly 30 s between consecutive messages in the mail capture, all to the test recipient |
+| Real sending | The Azure test environment sent an email through the institutional test mailbox after the SMTP user was configured |
+| Open gates | P-01, P-02 (definitive mailbox) and P-03, listed below |
 
 ## Decisions and gates, with their status
 
